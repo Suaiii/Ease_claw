@@ -1,0 +1,6 @@
+{
+  "_comment": "C 方案：name → phone 扁平映射。call / send_sms 都用同一张表。测试号建议用 10086 / 12306 / 10010 等运营商号做 smoke（不会真扰民）。",
+  "女儿":   {"phone": "13800138000", "note": "demo 接收号 — 正式录 demo 前改成用户备用机真号"},
+  "10086": {"phone": "10086",       "note": "移动客服，用于 CallAdapter smoke（不会接通真人）"},
+  "12306": {"phone": "12306",       "note": "铁路客服，用于 SmsAdapter smoke"}
+}

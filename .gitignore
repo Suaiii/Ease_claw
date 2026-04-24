@@ -1,0 +1,50 @@
+# ClawEase gitignore
+
+# 凭证 - 永远不要入 git
+.env
+.env.local
+*.key
+*.pem
+
+# 本地临时调试脚本（常含明文 key，不要入 git）
+_tmp_*.ps1
+_tmp_*.mjs
+_tmp_*.py
+
+# Claude Code / IDE 本地设置（permission allow-list 里会嵌入授权过的 key 明文）
+.claude/
+
+# Python
+__pycache__/
+*.pyc
+.conda/
+.venv/
+
+# uiautomator2 / atx-agent 缓存
+.uiautomator2/
+atx-agent.log
+
+# 截图（录 demo 用的留着，日常调试临时扔的不入）
+notes/screenshots/*-debug-*.png
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OpenClaw 本地状态（runtime workspace，每会话生成，不进仓）
+openclaw/workspace/
+openclaw/clawease-intent-workspace/
+openclaw/node_modules/
+openclaw/.next/
+openclaw/dist/
+openclaw/.pnpm-store/
+openclaw/.turbo/
+
+# OpenClaw 其他常见生成物
+**/.next/
+**/node_modules/

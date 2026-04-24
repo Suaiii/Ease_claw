@@ -1,0 +1,4 @@
+
+> openclaw@2026.4.20 dev E:\aNB\Ease-claw\openclaw
+> node scripts/run-node.mjs "agent" "--local" "--agent" "main" "--json" "--thinking" "off" "--message" "你是意图解析器。用户说一句中文，请解析：to=要发给的联系人名，msg=消息内容（改写成第一人称陈述，去掉\"告诉、帮我说、发一条\"等指令词）。只输出 JSON，不要代码块标记、不要解释。示例：输入\"告诉文件传输助手我现在有空\"→{\"to\":\"文件传输助手\",\"msg\":\"我现在有空\"}。现在解析：给文件传输助手发一条我吃过饭了"
+

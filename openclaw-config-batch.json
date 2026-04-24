@@ -1,0 +1,22 @@
+[
+  {
+    "path": "models.providers.google.baseUrl",
+    "value": "https://generativelanguage.googleapis.com"
+  },
+  {
+    "path": "models.providers.google.api",
+    "value": "google-generative-ai"
+  },
+  {
+    "path": "models.providers.google.apiKey",
+    "value": "GEMINI_API_KEY"
+  },
+  {
+    "path": "models.providers.google.models",
+    "value": [{"id": "gemini-2.5-flash", "name": "Gemini 2.5 Flash"}]
+  },
+  {
+    "path": "models.providers.google.request.allowPrivateNetwork",
+    "value": true
+  }
+]
