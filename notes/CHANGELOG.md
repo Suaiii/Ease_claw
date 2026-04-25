@@ -5,6 +5,47 @@
 
 ---
 
+## 2026-04-25 — D6e / 双端网页 demo 可演示态确认
+
+### ✅ 今日验证结果（真机 + OpenClaw cloud）
+- OpenClaw 云端 helper 通：
+  ```bash
+  node scripts/openclaw_cloud_intent.mjs "请只回复OK"
+  ```
+  返回 `OK`。
+- `voice_to_action.py` 三条 dry-run 全通，解析耗时约 `3.4s ~ 3.9s`：
+  - `给10086打电话`
+  - `给12306发一条我晚点到`
+  - `有没有新短信`
+- 三条真机动作链全通（`exit=0`）：
+  - `call`：拨号器拉起（DIAL）
+  - `send_sms`：短信 compose 预填，默认不自动发送
+  - `read_inbox`：成功读取并分类最近短信
+- Web demo 服务可用：
+  - `http://127.0.0.1:8765/api/status` 返回 `mode=openclaw_cloud` 且 `adb.ok=true`
+  - `/?view=elder`、`/?view=operator` 均返回 200
+
+### ✅ 产品演示最短路径（现场 2-3 分钟）
+```powershell
+cd E:\aNB\Ease-claw
+.\scripts\start_clawease_cloud.ps1
+.\start_demo.ps1
+```
+浏览器打开：
+- `http://127.0.0.1:8765/?view=elder`
+- `http://127.0.0.1:8765/?view=operator`
+
+演示口令顺序固定为：
+1. `给10086打电话`
+2. `给12306发一条我晚点到`
+3. `有没有新短信`
+
+### 备注
+- 新增状态快照文档：`notes/DEMO_STATUS_2026-04-25.md`
+- `voice_to_action.py` 已自动读取 `start.bat` 里的代理变量，无需额外手工设置代理。
+
+---
+
 ## 2026-04-22 — D1 / D2 完成（Layer 1 启动日）
 
 ### ✅ D1：OpenClaw 本地跑通 + Gemini 接入

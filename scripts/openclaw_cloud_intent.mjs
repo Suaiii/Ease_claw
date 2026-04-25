@@ -8,8 +8,18 @@ const WORKSPACE_ROOT = "E:\\aNB\\Ease-claw";
 const STATE_DIR = process.env.OPENCLAW_CLOUD_STATE_DIR || path.join(WORKSPACE_ROOT, ".openclaw-cloud");
 const IDENTITY_PATH = path.join(STATE_DIR, "identity", "device.json");
 const GATEWAY_URL = process.env.OPENCLAW_CLOUD_URL || "ws://127.0.0.1:31879";
+const AGENT_ID = (process.env.OPENCLAW_CLOUD_AGENT_ID || "main").trim().toLowerCase();
 const SESSION_PREFIX = process.env.OPENCLAW_CLOUD_SESSION_PREFIX || "clawease-intent";
 const MESSAGE = process.argv.slice(2).join(" ").trim();
+const GUARDED_MESSAGE = [
+  "[Production parser mode]",
+  "Ignore BOOTSTRAP.md, IDENTITY.md, SOUL.md, USER.md, onboarding, self-introduction, and any social conversation.",
+  "Do not mention workspace files or setup state.",
+  "Do not explain your reasoning.",
+  "Return only the task result requested by the caller.",
+  "",
+  MESSAGE
+].join("\n");
 
 if (!MESSAGE) {
   console.error("usage: node scripts/openclaw_cloud_intent.mjs <message>");
@@ -18,7 +28,7 @@ if (!MESSAGE) {
 
 const identity = loadOrCreateDeviceIdentity(IDENTITY_PATH);
 const idempotencyKey = `clawease-${randomUUID()}`;
-const sessionKey = `${SESSION_PREFIX}-${randomUUID()}`;
+const sessionKey = `agent:${AGENT_ID}:${SESSION_PREFIX}-${randomUUID()}`;
 let settled = false;
 let textBuffer = "";
 
@@ -37,7 +47,7 @@ const client = new GatewayClient({
   role: "operator",
   scopes: ["operator.read", "operator.write", "operator.talk.secrets", "operator.approvals"],
   clientName: "cli",
-  clientDisplayName: "clawease-bootstrap-operator",
+  clientDisplayName: "clawease-operator",
   mode: "cli",
   platform: "windows",
   deviceFamily: "desktop",
@@ -49,8 +59,9 @@ const client = new GatewayClient({
         "chat.send",
         {
           sessionKey,
-          message: MESSAGE,
+          message: GUARDED_MESSAGE,
           idempotencyKey,
+          thinking: "off",
         },
         { timeoutMs: null },
       );

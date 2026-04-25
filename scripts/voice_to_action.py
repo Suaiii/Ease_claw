@@ -40,6 +40,7 @@ INTENT_PROMPT_TEMPLATE = (
     "call 表示打电话，target 填联系人姓名或号码，content 置空；"
     "send_sms 表示发短信，target 填联系人姓名或号码，content 填短信正文；"
     "read_inbox 表示读取最新短信，target 和 content 都置空。"
+    "如果 target 只是亲属称谓或泛称（如 女儿、儿子、老伴、家里人、她、他），且没有明确姓名或号码，优先把 needs_clarification 设为 true。"
     "summary 用一句自然中文总结老人真正想做的事；"
     "key_points 是 1 到 3 条短语，提取关键信息；"
     "focus_tags 从 known_contact、verification_code、fraud_risk、urgent、reminder 中选择 0 到 3 个；"
@@ -534,6 +535,8 @@ def parse_intent(inner_text: str) -> dict:
     action = str(obj.get("action", "")).strip()
     if action not in {"call", "send_sms", "read_inbox"}:
         raise RuntimeError(f"invalid intent action: {obj!r}")
+    allowed_focus_tags = {"known_contact", "verification_code", "fraud_risk", "urgent", "reminder"}
+    allowed_risk_flags = {"fraud_risk", "unclear_target", "unclear_content"}
     def _string_list(value) -> list[str]:
         if not isinstance(value, list):
             return []
@@ -550,8 +553,8 @@ def parse_intent(inner_text: str) -> dict:
         "content": str(obj.get("content", "")).strip(),
         "summary": str(obj.get("summary", "")).strip(),
         "key_points": _string_list(obj.get("key_points")),
-        "focus_tags": _string_list(obj.get("focus_tags")),
-        "risk_flags": _string_list(obj.get("risk_flags")),
+        "focus_tags": [item for item in _string_list(obj.get("focus_tags")) if item in allowed_focus_tags],
+        "risk_flags": [item for item in _string_list(obj.get("risk_flags")) if item in allowed_risk_flags],
         "needs_clarification": bool(obj.get("needs_clarification", False)),
         "clarify_question": str(obj.get("clarify_question", "")).strip(),
     }
@@ -669,6 +672,43 @@ def ensure_android_device() -> None:
 
 
 
+
+def build_action_completion_speech(
+    action: str,
+    *,
+    target: str = "",
+    auto_send: bool = False,
+) -> str:
+    name = target.strip()
+    if action == "call":
+        if name:
+            return f"{name}的电话已经帮您准备好了，您看看要不要拨出去。"
+        return "电话已经帮您准备好了，您看看要不要拨出去。"
+    if action == "send_sms":
+        if auto_send:
+            if name:
+                return f"给{name}的短信已经帮您发好了，您看看还有没有别的要说。"
+            return "短信已经帮您发好了，您看看还有没有别的要说。"
+        if name:
+            return f"给{name}的短信已经帮您写好了，您确认一下再发送。"
+        return "短信已经帮您写好了，您确认一下再发送。"
+    return "已经帮您操作好了，您看看下一步怎么决定。"
+
+
+def speak_action_completion(
+    action: str,
+    *,
+    target: str = "",
+    auto_send: bool = False,
+) -> str:
+    from tts_service import preheat, speak
+
+    speech = build_action_completion_speech(action, target=target, auto_send=auto_send)
+    kind = preheat()
+    print(f"[clawease] tts engine={kind}, reading completion prompt...")
+    speak(speech, blocking=True)
+    return speech
+
 def do_read_inbox(limit: int, skip_tts: bool) -> int:
     adapter = build_adapter("read_inbox")
     llm_caller = (
@@ -729,7 +769,7 @@ def main() -> int:
     ap.add_argument("--env", default=str(DEFAULT_ENV))
     ap.add_argument("--dry-run", action="store_true", help="Only parse intent")
     ap.add_argument("--limit", type=int, default=5, help="Inbox read limit")
-    ap.add_argument("--no-tts", action="store_true", help="Disable TTS for inbox reads")
+    ap.add_argument("--no-tts", action="store_true", help="Disable TTS prompts and inbox readout")
     args = ap.parse_args()
 
     load_env(Path(args.env))
@@ -786,8 +826,14 @@ def main() -> int:
         params["content"] = content
     result = adapter.execute(params)
     print(f"[clawease] result: ok={result.ok} detail={result.detail!r}")
+    if result.ok and not args.no_tts:
+        try:
+            speak_action_completion(action, target=target, auto_send=False)
+        except Exception as exc:
+            print(f"[clawease] completion TTS failed but main flow is okay: {exc!r}")
     return 0 if result.ok else 1
 
 
 if __name__ == "__main__":
     sys.exit(main())
+

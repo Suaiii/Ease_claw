@@ -19,29 +19,52 @@ def _tts_mode() -> str:
 
 
 def _volcengine_required_env() -> dict[str, str]:
-    keys = {
-        "appid": "VOLCENGINE_TTS_APPID",
-        "token": "VOLCENGINE_TTS_TOKEN",
-        "cluster": "VOLCENGINE_TTS_CLUSTER",
-        "voice_type": "VOLCENGINE_TTS_VOICE_TYPE",
-    }
     values: dict[str, str] = {}
-    for field, env_name in keys.items():
-        value = (os.environ.get(env_name) or "").strip()
-        if not value:
-            raise RuntimeError(f"missing env for volcengine TTS: {env_name}")
-        values[field] = value
+    voice_type = (os.environ.get("VOLCENGINE_TTS_VOICE_TYPE") or "").strip()
+    if not voice_type:
+        raise RuntimeError("missing env for volcengine TTS: VOLCENGINE_TTS_VOICE_TYPE")
+    values["voice_type"] = voice_type
+
+    api_key = (os.environ.get("VOLCENGINE_TTS_API_KEY") or "").strip()
+    if api_key:
+        values["api_version"] = "v3"
+        values["api_key"] = api_key
+        values["resource_id"] = (
+            os.environ.get("VOLCENGINE_TTS_RESOURCE_ID") or "volc.service_type.10029"
+        ).strip()
+        values["endpoint"] = (
+            os.environ.get("VOLCENGINE_TTS_ENDPOINT")
+            or "https://openspeech.bytedance.com/api/v3/tts/unidirectional"
+        ).strip()
+        values["appid"] = (os.environ.get("VOLCENGINE_TTS_APPID") or "clawease").strip()
+        return values
+
+    values["api_version"] = "v1"
+    values["appid"] = (os.environ.get("VOLCENGINE_TTS_APPID") or "").strip()
+    values["token"] = (os.environ.get("VOLCENGINE_TTS_TOKEN") or "").strip()
+    values["cluster"] = (os.environ.get("VOLCENGINE_TTS_CLUSTER") or "").strip()
+    values["endpoint"] = (
+        os.environ.get("VOLCENGINE_TTS_ENDPOINT")
+        or "https://openspeech.bytedance.com/api/v1/tts"
+    ).strip()
+    missing = [name for name in ("appid", "token", "cluster") if not values[name]]
+    if missing:
+        env_names = {
+            "appid": "VOLCENGINE_TTS_APPID",
+            "token": "VOLCENGINE_TTS_TOKEN",
+            "cluster": "VOLCENGINE_TTS_CLUSTER",
+        }
+        raise RuntimeError(
+            "missing env for volcengine TTS: "
+            + ", ".join(env_names[item] for item in missing)
+        )
     return values
 
 
-def _volcengine_payload(text: str) -> bytes:
-    conf = _volcengine_required_env()
+def _volcengine_payload(text: str, conf: dict[str, str]) -> bytes:
+    default_op = "query" if conf["api_version"] == "v1" else "submit"
     body = {
-        "app": {
-            "appid": conf["appid"],
-            "token": conf["token"],
-            "cluster": conf["cluster"],
-        },
+        "app": {"appid": conf["appid"]},
         "user": {"uid": os.environ.get("VOLCENGINE_TTS_UID", "clawease-elder")},
         "audio": {
             "voice_type": conf["voice_type"],
@@ -57,9 +80,12 @@ def _volcengine_payload(text: str) -> bytes:
             "reqid": str(uuid4()),
             "text": text,
             "text_type": "plain",
-            "operation": "query",
+            "operation": os.environ.get("VOLCENGINE_TTS_OPERATION", default_op),
         },
     }
+    if conf["api_version"] == "v1":
+        body["app"]["token"] = conf["token"]
+        body["app"]["cluster"] = conf["cluster"]
     return json.dumps(body, ensure_ascii=False).encode("utf-8")
 
 
@@ -80,29 +106,56 @@ def _play_volcengine_wav(data: bytes, blocking: bool = True) -> None:
 
 
 def _volcengine_speak(text: str, blocking: bool = True) -> None:
-    payload = _volcengine_payload(text)
-    token = (os.environ.get("VOLCENGINE_TTS_TOKEN") or "").strip()
-    req = urllib.request.Request(
-        "https://openspeech.bytedance.com/api/v1/tts",
-        data=payload,
-        headers={
-            "Authorization": f"Bearer;{token}",
-            "Content-Type": "application/json",
-        },
-        method="POST",
-    )
+    conf = _volcengine_required_env()
+    payload = _volcengine_payload(text, conf)
+    headers = {"Content-Type": "application/json"}
+    if conf["api_version"] == "v3":
+        headers["X-Api-Key"] = conf["api_key"]
+        headers["X-Api-Resource-Id"] = conf["resource_id"]
+    else:
+        headers["Authorization"] = f"Bearer;{conf['token']}"
+
+    req = urllib.request.Request(conf["endpoint"], data=payload, headers=headers, method="POST")
     try:
         with urllib.request.urlopen(req, timeout=45) as resp:
-            result = json.loads(resp.read().decode("utf-8"))
+            raw = resp.read()
+            content_type = (resp.headers.get("Content-Type") or "").lower()
     except urllib.error.HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="replace")
         raise RuntimeError(f"Volcengine TTS HTTP {exc.code}: {detail}") from exc
     except urllib.error.URLError as exc:
         raise RuntimeError(f"Volcengine TTS request failed: {exc}") from exc
 
-    if int(result.get("code", 0)) != 3000 or not result.get("data"):
-        raise RuntimeError(f"Volcengine TTS failed: {result!r}")
-    _play_volcengine_wav(base64.b64decode(result["data"]), blocking=blocking)
+    looks_like_json = (
+        "application/json" in content_type
+        or "text/plain" in content_type
+        or raw.lstrip().startswith(b"{")
+    )
+    if looks_like_json:
+        result = json.loads(raw.decode("utf-8", errors="replace"))
+        code = int(result.get("code", 0))
+        if conf["api_version"] == "v1":
+            if code != 3000 or not result.get("data"):
+                raise RuntimeError(f"Volcengine TTS failed: {result!r}")
+            _play_volcengine_wav(base64.b64decode(result["data"]), blocking=blocking)
+            return
+        if code != 3000:
+            hint = ""
+            if code == 55000000:
+                hint = (
+                    " (resource_id and voice_type mismatch, "
+                    "check VOLCENGINE_TTS_RESOURCE_ID and VOLCENGINE_TTS_VOICE_TYPE)"
+                )
+            raise RuntimeError(f"Volcengine TTS failed: {result!r}{hint}")
+        data = result.get("data")
+        if not data:
+            raise RuntimeError(f"Volcengine TTS succeeded but no audio data: {result!r}")
+        if isinstance(data, str):
+            _play_volcengine_wav(base64.b64decode(data), blocking=blocking)
+            return
+        raise RuntimeError(f"Volcengine TTS returned unsupported data format: {result!r}")
+
+    _play_volcengine_wav(raw, blocking=blocking)
 
 
 def preheat() -> str:

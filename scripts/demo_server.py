@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import argparse
 import dataclasses
@@ -195,7 +195,7 @@ def run_voice_command(
     }
 
     if intent.get("needs_clarification"):
-        question = intent.get("clarify_question") or "你是想让我帮你打电话、发短信，还是读短信？"
+        question = intent.get("clarify_question") or "您是想让我帮您打电话、发短信，还是读短信呢？"
         original_voice_text = (
             str(clarification_context.get("originalVoiceText") or "").strip()
             if clarification_context
@@ -240,8 +240,7 @@ def run_voice_command(
                 from tts_service import preheat, speak
 
                 kind = preheat()
-                log(f"tts engine={kind}")
-                speech = response.get("elderSummary", {}).get("speech") or f"你有 {len(result.payload)} 条新消息。"
+                speech = response.get("elderSummary", {}).get("speech") or f"您有 {len(result.payload)} 条新消息。"
                 speak(speech, blocking=True)
             except Exception as exc:
                 log(f"tts failed: {exc!r}")
@@ -262,6 +261,24 @@ def run_voice_command(
         log(f"sms auto_send={bool(auto_send)}")
     result = adapter.execute(params)
     log(f"{action} result: ok={result.ok} detail={result.detail}")
+    completion_speech = ""
+    if result.ok:
+        completion_speech = vta.build_action_completion_speech(
+            action,
+            target=target,
+            auto_send=bool(params.get("auto_send", False)),
+        )
+        response["completionSpeech"] = completion_speech
+        if not no_tts:
+            try:
+                spoken = vta.speak_action_completion(
+                    action,
+                    target=target,
+                    auto_send=bool(params.get("auto_send", False)),
+                )
+                log(f"completion tts={spoken}")
+            except Exception as exc:
+                log(f"completion tts failed: {exc!r}")
     response["result"] = _json_ready(result)
     response["timing"]["totalSec"] = round(time.time() - started_at, 2)
     response["ok"] = bool(result.ok)
@@ -396,3 +413,5 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
+

@@ -1,31 +1,99 @@
-$ErrorActionPreference = "Stop"
+﻿$ErrorActionPreference = "Stop"
 
-$pidFile = "E:\aNB\Ease-claw\.openclaw-cloud-relay.pid"
+$root = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+$envPath = Join-Path $root ".env"
 
-if (!(Test-Path $pidFile)) {
-  Write-Output "[clawease-cloud] relay pid file not found"
-  exit 0
-}
-
-$pid = (Get-Content $pidFile -ErrorAction SilentlyContinue | Select-Object -First 1)
-if (!$pid) {
-  Remove-Item $pidFile -Force -ErrorAction SilentlyContinue
-  Write-Output "[clawease-cloud] empty pid file removed"
-  exit 0
-}
-
-$proc = Get-Process -Id $pid -ErrorAction SilentlyContinue
-if ($proc) {
-  try {
-    $proc.Kill()
-    $proc.WaitForExit()
-    Write-Output "[clawease-cloud] relay stopped (pid=$pid)"
-  } catch {
-    Write-Output "[clawease-cloud] failed to stop relay cleanly: $($_.Exception.Message)"
-    exit 1
+function Read-DotEnv([string]$path) {
+  $map = @{}
+  if (-not (Test-Path $path)) {
+    return $map
   }
-} else {
-  Write-Output "[clawease-cloud] relay process not running"
+  foreach ($line in Get-Content $path) {
+    $trimmed = $line.Trim()
+    if (-not $trimmed -or $trimmed.StartsWith("#")) {
+      continue
+    }
+    $parts = $trimmed -split "=", 2
+    if ($parts.Count -ne 2) {
+      continue
+    }
+    $name = $parts[0].Trim()
+    $value = $parts[1].Trim()
+    if ((($value.StartsWith('"') -and $value.EndsWith('"')) -or ($value.StartsWith("'") -and $value.EndsWith("'"))) -and $value.Length -ge 2) {
+      $value = $value.Substring(1, $value.Length - 2)
+    }
+    if ($name) {
+      $map[$name] = $value
+    }
+  }
+  return $map
 }
 
-Remove-Item $pidFile -Force -ErrorAction SilentlyContinue
+function Get-Setting([hashtable]$dotEnv, [string]$name, [string]$fallback = "") {
+  $fromProcess = [Environment]::GetEnvironmentVariable($name)
+  if ($fromProcess) {
+    return $fromProcess.Trim()
+  }
+  if ($dotEnv.ContainsKey($name)) {
+    return ($dotEnv[$name] | Out-String).Trim()
+  }
+  return $fallback
+}
+
+function Get-ListenerPid([int]$port) {
+  $line = netstat -ano | Select-String ":$port" | Where-Object { $_ -match "LISTENING" } | Select-Object -First 1
+  if (-not $line) {
+    return $null
+  }
+  $parts = ($line.ToString().Trim() -split '\s+')
+  if ($parts.Count -lt 5) {
+    return $null
+  }
+  return [int]$parts[-1]
+}
+
+function Stop-ByPid([int]$processId) {
+  try {
+    Stop-Process -Id $processId -Force -ErrorAction Stop
+    Start-Sleep -Milliseconds 400
+  } catch {
+    & taskkill /F /PID $processId | Out-Null
+    Start-Sleep -Milliseconds 400
+  }
+}
+
+$dotEnv = Read-DotEnv $envPath
+$pidFile = Get-Setting $dotEnv "OPENCLAW_CLOUD_RELAY_PID_FILE" (Join-Path $root ".openclaw-cloud-relay.pid")
+$listenPort = [int](Get-Setting $dotEnv "OPENCLAW_CLOUD_LISTEN_PORT" "31879")
+
+$stoppedAny = $false
+if (Test-Path $pidFile) {
+  $relayPidRaw = (Get-Content $pidFile -ErrorAction SilentlyContinue | Select-Object -First 1)
+  if ($relayPidRaw) {
+    $relayPid = [int]$relayPidRaw
+    if (Get-Process -Id $relayPid -ErrorAction SilentlyContinue) {
+      Stop-ByPid $relayPid
+      $stoppedAny = $true
+      Write-Output "[clawease-cloud] relay stopped by pid file (pid=$relayPid)"
+    }
+  }
+  Remove-Item $pidFile -Force -ErrorAction SilentlyContinue
+}
+
+$listenerPid = Get-ListenerPid $listenPort
+if ($listenerPid) {
+  Stop-ByPid $listenerPid
+  $stoppedAny = $true
+  Write-Output "[clawease-cloud] relay stopped by port fallback (pid=$listenerPid, port=$listenPort)"
+}
+
+$listenerPidAfter = Get-ListenerPid $listenPort
+if ($listenerPidAfter) {
+  Write-Output "[clawease-cloud] failed to stop listener on port $listenPort (pid=$listenerPidAfter)"
+  exit 1
+}
+
+if (-not $stoppedAny) {
+  Write-Output "[clawease-cloud] relay was not running"
+}
+
