@@ -68,13 +68,15 @@ def _env_int(name: str, default: int) -> int:
     return value
 
 
-OPENCLAW_AGENT_ID = "main"
+OPENCLAW_AGENT_ID = "clawease-intent"
 OPENCLAW_MODEL_ID = "google/gemini-2.5-flash"
 OPENCLAW_PARSE_MODE = "model_run"
 OPENAI_MODEL_ID = "gpt-5.4-mini"
+DEEPSEEK_MODEL_ID = "deepseek-chat"
 OPENCLAW_AGENT_TIMEOUT_SEC = 210
 OPENCLAW_PROCESS_TIMEOUT_SEC = 240
 OPENCLAW_USE_FOR_SMS_CLASSIFICATION = False
+OPENCLAW_SESSION_ID = ""
 OPENCLAW_AVAILABLE = True
 
 
@@ -83,11 +85,15 @@ def refresh_runtime_flags() -> None:
     global OPENCLAW_MODEL_ID
     global OPENCLAW_PARSE_MODE
     global OPENAI_MODEL_ID
+    global DEEPSEEK_MODEL_ID
     global OPENCLAW_AGENT_TIMEOUT_SEC
     global OPENCLAW_PROCESS_TIMEOUT_SEC
     global OPENCLAW_USE_FOR_SMS_CLASSIFICATION
+    global OPENCLAW_SESSION_ID
 
-    OPENCLAW_AGENT_ID = os.environ.get("OPENCLAW_AGENT_ID", "main").strip() or "main"
+    OPENCLAW_AGENT_ID = (
+        os.environ.get("OPENCLAW_AGENT_ID", "clawease-intent").strip() or "clawease-intent"
+    )
     OPENCLAW_MODEL_ID = (
         os.environ.get("OPENCLAW_MODEL_ID", "google/gemini-2.5-flash").strip()
         or "google/gemini-2.5-flash"
@@ -96,6 +102,7 @@ def refresh_runtime_flags() -> None:
         os.environ.get("OPENCLAW_PARSE_MODE", "model_run").strip().lower() or "model_run"
     )
     OPENAI_MODEL_ID = os.environ.get("OPENAI_MODEL_ID", "gpt-5.4-mini").strip() or "gpt-5.4-mini"
+    DEEPSEEK_MODEL_ID = os.environ.get("DEEPSEEK_MODEL_ID", "deepseek-chat").strip() or "deepseek-chat"
     OPENCLAW_AGENT_TIMEOUT_SEC = _env_int("OPENCLAW_AGENT_TIMEOUT_SEC", 210)
     OPENCLAW_PROCESS_TIMEOUT_SEC = _env_int(
         "OPENCLAW_PROCESS_TIMEOUT_SEC", OPENCLAW_AGENT_TIMEOUT_SEC + 30
@@ -104,6 +111,7 @@ def refresh_runtime_flags() -> None:
         os.environ.get("OPENCLAW_USE_FOR_SMS_CLASSIFICATION", "").strip().lower()
         in {"1", "true", "yes", "on"}
     )
+    OPENCLAW_SESSION_ID = os.environ.get("OPENCLAW_SESSION_ID", "").strip()
 
 
 refresh_runtime_flags()
@@ -218,13 +226,62 @@ def call_openai_direct(prompt: str) -> str:
     return text
 
 
+def _extract_deepseek_output_text(payload: dict) -> str:
+    choices = payload.get("choices") or []
+    if not choices:
+        return ""
+    message = (choices[0] or {}).get("message") or {}
+    return (message.get("content") or "").strip()
+
+
+def call_deepseek_direct(prompt: str) -> str:
+    api_key = (os.environ.get("DEEPSEEK_API_KEY") or "").strip()
+    if not api_key:
+        raise RuntimeError("DEEPSEEK_API_KEY is missing for deepseek_direct mode")
+
+    body = json.dumps(
+        {
+            "model": DEEPSEEK_MODEL_ID,
+            "messages": [{"role": "user", "content": prompt}],
+        }
+    ).encode("utf-8")
+    req = urllib.request.Request(
+        "https://api.deepseek.com/chat/completions",
+        data=body,
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(
+            req,
+            timeout=min(OPENCLAW_PROCESS_TIMEOUT_SEC, 60),
+        ) as resp:
+            payload = json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")
+        raise RuntimeError(f"DeepSeek HTTP {exc.code}: {detail}") from exc
+    except urllib.error.URLError as exc:
+        raise RuntimeError(f"DeepSeek request failed: {exc}") from exc
+
+    text = _extract_deepseek_output_text(payload)
+    if not text:
+        raise RuntimeError(f"DeepSeek emitted no text output: {payload!r}")
+    return text
+
+
 def call_openclaw(prompt: str) -> str:
     global OPENCLAW_AVAILABLE
     if not OPENCLAW_AVAILABLE:
         raise RuntimeError("OpenClaw temporarily disabled after previous failure")
     if OPENCLAW_PARSE_MODE == "openai_direct":
         return call_openai_direct(prompt)
+    if OPENCLAW_PARSE_MODE == "deepseek_direct":
+        return call_deepseek_direct(prompt)
     if OPENCLAW_PARSE_MODE == "agent":
+        session_id = OPENCLAW_SESSION_ID or f"clawease-intent-{int(time.time() * 1000)}"
         cmd = [
             "node",
             "openclaw.mjs",
@@ -232,6 +289,8 @@ def call_openclaw(prompt: str) -> str:
             "--local",
             "--agent",
             OPENCLAW_AGENT_ID,
+            "--session-id",
+            session_id,
             "--json",
             "--thinking",
             "off",
@@ -472,8 +531,15 @@ def main() -> int:
     refresh_runtime_flags()
 
     print(f"[clawease] voice_text={args.voice_text!r}")
-    parse_model = OPENAI_MODEL_ID if OPENCLAW_PARSE_MODE == "openai_direct" else OPENCLAW_MODEL_ID
-    parse_runtime = "OpenAI direct" if OPENCLAW_PARSE_MODE == "openai_direct" else "OpenClaw"
+    if OPENCLAW_PARSE_MODE == "openai_direct":
+        parse_model = OPENAI_MODEL_ID
+        parse_runtime = "OpenAI direct"
+    elif OPENCLAW_PARSE_MODE == "deepseek_direct":
+        parse_model = DEEPSEEK_MODEL_ID
+        parse_runtime = "DeepSeek direct"
+    else:
+        parse_model = OPENCLAW_MODEL_ID
+        parse_runtime = "OpenClaw"
     print(
         f"[clawease] calling {parse_runtime} for intent "
         f"(mode={OPENCLAW_PARSE_MODE}, model={parse_model}, timeout={OPENCLAW_AGENT_TIMEOUT_SEC}s) ..."

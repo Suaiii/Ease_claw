@@ -1,0 +1,1186 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title data-i18n="op.title">ClawEase Demo Console</title>
+  <style>
+    :root {
+      --bg: #f6efe2;
+      --bg-strong: #eadfc8;
+      --ink: #1f1d1a;
+      --muted: #675f55;
+      --line: rgba(31, 29, 26, 0.14);
+      --panel: rgba(255, 250, 241, 0.84);
+      --accent: #c45f32;
+      --accent-soft: #f0c4a8;
+      --success: #2d7b57;
+      --warn: #a76a12;
+      --danger: #9b3131;
+      --info: #2d5c8f;
+      --shadow: 0 24px 70px rgba(73, 48, 21, 0.16);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Bahnschrift", "Aptos", "Microsoft YaHei UI", sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at top left, rgba(196, 95, 50, 0.14), transparent 26rem),
+        radial-gradient(circle at right 20%, rgba(45, 123, 87, 0.12), transparent 22rem),
+        linear-gradient(180deg, #fcf6eb 0%, #f3ead8 100%);
+      min-height: 100vh;
+    }
+
+    .shell {
+      max-width: 1320px;
+      margin: 0 auto;
+      padding: 28px 20px 40px;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: 1.3fr .8fr;
+      gap: 18px;
+      margin-bottom: 18px;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(14px);
+      border-radius: 28px;
+      overflow: hidden;
+    }
+
+    .hero-main {
+      padding: 28px;
+      position: relative;
+      isolation: isolate;
+    }
+
+    .hero-main::after {
+      content: "";
+      position: absolute;
+      inset: auto -8% -25% auto;
+      width: 260px;
+      height: 260px;
+      background: radial-gradient(circle, rgba(196, 95, 50, 0.18), transparent 70%);
+      z-index: -1;
+    }
+
+    .lang-switch {
+      position: absolute; top: 18px; right: 18px;
+      display: inline-flex; gap: 4px; padding: 4px;
+      background: rgba(31, 29, 26, 0.06); border-radius: 999px;
+      z-index: 1;
+    }
+    .lang-switch button {
+      border: 0; background: transparent; padding: 6px 12px; border-radius: 999px;
+      cursor: pointer; font: inherit; font-size: 13px; color: var(--muted);
+      transition: background .16s ease, color .16s ease, box-shadow .16s ease;
+    }
+    .lang-switch button.active {
+      background: #fff; color: var(--ink); box-shadow: 0 1px 3px rgba(73, 48, 21, 0.16);
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 12px;
+      border-radius: 999px;
+      background: rgba(31, 29, 26, 0.06);
+      color: var(--muted);
+      font-size: 12px;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      margin-bottom: 18px;
+    }
+
+    h1 {
+      margin: 0 0 12px;
+      font-family: Georgia, "STSong", serif;
+      font-size: clamp(34px, 5vw, 56px);
+      line-height: .98;
+      font-weight: 700;
+      max-width: 12ch;
+    }
+
+    .lead {
+      max-width: 58ch;
+      margin: 0 0 22px;
+      color: var(--muted);
+      line-height: 1.6;
+      font-size: 15px;
+    }
+
+    .hero-stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+    }
+
+    .stat {
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      padding: 14px;
+      background: rgba(255,255,255,0.55);
+    }
+
+    .stat-label {
+      font-size: 12px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      margin-bottom: 8px;
+    }
+
+    .stat-value {
+      font-size: 20px;
+      font-weight: 700;
+    }
+
+    .hero-side {
+      padding: 22px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      background:
+        linear-gradient(160deg, rgba(31, 29, 26, 0.96), rgba(74, 52, 27, 0.96));
+      color: #f4ebdb;
+    }
+
+    .side-title {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .side-title h2 {
+      margin: 0;
+      font-size: 16px;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 10px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.12);
+      font-size: 12px;
+    }
+
+    .dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: #bbb;
+      box-shadow: 0 0 0 4px rgba(255,255,255,0.08);
+    }
+
+    .dot.ok { background: #7fdb89; }
+    .dot.warn { background: #ffbe5c; }
+    .dot.bad { background: #ff7d7d; }
+
+    .side-block {
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 18px;
+      padding: 14px;
+      background: rgba(255,255,255,0.05);
+    }
+
+    .side-block h3 {
+      margin: 0 0 10px;
+      font-size: 12px;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: rgba(244, 235, 219, 0.72);
+    }
+
+    .mono {
+      font-family: Consolas, "Cascadia Mono", monospace;
+      font-size: 13px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1.1fr .9fr;
+      gap: 18px;
+    }
+
+    .composer {
+      padding: 22px;
+    }
+
+    .composer h2,
+    .result h2 {
+      margin: 0 0 6px;
+      font-size: 22px;
+    }
+
+    .sub {
+      margin: 0 0 18px;
+      color: var(--muted);
+      line-height: 1.5;
+      font-size: 14px;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 8px;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: .03em;
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 120px;
+      resize: vertical;
+      border-radius: 18px;
+      border: 1px solid var(--line);
+      padding: 16px 56px 16px 18px;
+      font: inherit;
+      color: var(--ink);
+      background: rgba(255,255,255,0.75);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.6);
+    }
+
+    .voice-wrap { position: relative; }
+
+    .mic-btn {
+      position: absolute;
+      right: 12px;
+      bottom: 12px;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--muted);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 12px rgba(73, 48, 21, 0.12);
+      transition: transform .16s ease, background .16s ease, color .16s ease, box-shadow .16s ease;
+    }
+
+    .mic-btn:hover { transform: translateY(-1px); color: var(--accent); }
+    .mic-btn:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+
+    .mic-btn.listening {
+      background: var(--accent);
+      color: #fff;
+      border-color: transparent;
+      animation: mic-pulse 1.2s infinite;
+    }
+
+    .mic-btn.error {
+      background: var(--danger);
+      color: #fff;
+      border-color: transparent;
+    }
+
+    @keyframes mic-pulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(196, 95, 50, 0.55); }
+      50% { box-shadow: 0 0 0 10px rgba(196, 95, 50, 0); }
+    }
+
+    .mic-status {
+      margin: 8px 2px 0;
+      font-size: 12px;
+      color: var(--muted);
+      min-height: 16px;
+      line-height: 1.5;
+    }
+
+    .mic-status.error { color: var(--danger); }
+
+    .chips {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin: 14px 0 18px;
+    }
+
+    .chip {
+      border: 1px solid var(--line);
+      background: #fff8ef;
+      color: var(--ink);
+      border-radius: 999px;
+      padding: 10px 14px;
+      cursor: pointer;
+      font: inherit;
+      transition: transform .16s ease, border-color .16s ease, background .16s ease;
+    }
+
+    .chip:hover {
+      transform: translateY(-1px);
+      border-color: rgba(196, 95, 50, 0.42);
+      background: #fff2e3;
+    }
+
+    .controls {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 18px;
+    }
+
+    .toggle {
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 12px 14px;
+      background: rgba(255,255,255,0.6);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      min-height: 92px;
+    }
+
+    .toggle input {
+      width: 18px;
+      height: 18px;
+      accent-color: var(--accent);
+    }
+
+    .toggle-head {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 700;
+    }
+
+    .toggle p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .actions {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .btn {
+      border: none;
+      border-radius: 16px;
+      padding: 14px 20px;
+      font: inherit;
+      font-weight: 700;
+      cursor: pointer;
+      transition: transform .16s ease, opacity .16s ease, box-shadow .16s ease;
+    }
+
+    .btn:hover { transform: translateY(-1px); }
+    .btn:disabled { opacity: .55; cursor: wait; transform: none; }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent), #de8153);
+      color: white;
+      box-shadow: 0 14px 30px rgba(196, 95, 50, 0.24);
+    }
+
+    .btn-secondary {
+      background: rgba(31, 29, 26, 0.08);
+      color: var(--ink);
+    }
+
+    .run-state {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .result {
+      padding: 22px;
+      display: grid;
+      gap: 14px;
+    }
+
+    .stack {
+      display: grid;
+      gap: 12px;
+    }
+
+    .result-card {
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 16px;
+      background: rgba(255,255,255,0.66);
+    }
+
+    .result-card h3 {
+      margin: 0 0 12px;
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: var(--muted);
+    }
+
+    .result-card pre {
+      margin: 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-family: Consolas, "Cascadia Mono", monospace;
+      font-size: 12px;
+      line-height: 1.6;
+    }
+
+    .kv {
+      display: grid;
+      grid-template-columns: 120px 1fr;
+      gap: 10px 14px;
+      font-size: 14px;
+    }
+
+    .kv div:nth-child(odd) {
+      color: var(--muted);
+    }
+
+    .inbox-list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .sms-item {
+      border-radius: 16px;
+      padding: 12px;
+      background: #fffdf8;
+      border: 1px solid var(--line);
+    }
+
+    .sms-top {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 6px;
+      font-size: 13px;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 5px 10px;
+      font-size: 12px;
+      font-weight: 700;
+      background: rgba(31,29,26,.08);
+    }
+
+    .pill.ok { background: rgba(45,123,87,.14); color: var(--success); }
+    .pill.warn { background: rgba(167,106,18,.14); color: var(--warn); }
+    .pill.bad { background: rgba(155,49,49,.14); color: var(--danger); }
+    .pill.info { background: rgba(45,92,143,.14); color: var(--info); }
+
+    .footer {
+      margin-top: 18px;
+      color: var(--muted);
+      font-size: 12px;
+      text-align: right;
+    }
+
+    @media (max-width: 980px) {
+      .hero,
+      .grid {
+        grid-template-columns: 1fr;
+      }
+
+      .controls {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 640px) {
+      .shell { padding: 14px; }
+      .hero-main,
+      .hero-side,
+      .composer,
+      .result { padding: 18px; }
+      .controls,
+      .hero-stats { grid-template-columns: 1fr; }
+      .kv { grid-template-columns: 1fr; }
+      .lang-switch { top: 12px; right: 12px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <section class="hero">
+      <article class="panel hero-main">
+        <div class="lang-switch" role="group" aria-label="Language">
+          <button type="button" data-lang="zh" data-i18n="lang.zh">中文</button>
+          <button type="button" data-lang="en" data-i18n="lang.en">EN</button>
+        </div>
+        <div class="eyebrow" data-i18n="op.eyebrow">ClawEase / Layer 1 / Real Device Demo</div>
+        <h1 data-i18n="op.h1">电脑控制台 + 真机动作链</h1>
+        <p class="lead" data-i18n="op.lead">这层面板只做一件事：把现有的中文指令链路稳定地演出来。浏览器发起命令，本地后端调用既有 Python 逻辑，再由真机完成拨号、短信和收件箱读取。</p>
+        <div class="hero-stats">
+          <div class="stat">
+            <div class="stat-label" data-i18n="op.stat.runtime">Intent Runtime</div>
+            <div class="stat-value" id="runtimeStat" data-i18n="op.loading">Loading</div>
+          </div>
+          <div class="stat">
+            <div class="stat-label" data-i18n="op.stat.model">Model</div>
+            <div class="stat-value mono" id="modelStat" data-i18n="op.loading">Loading</div>
+          </div>
+          <div class="stat">
+            <div class="stat-label" data-i18n="op.stat.adb">ADB</div>
+            <div class="stat-value" id="adbStat" data-i18n="op.checking">Checking</div>
+          </div>
+        </div>
+      </article>
+
+      <aside class="panel hero-side">
+        <div class="side-title">
+          <h2 data-i18n="op.side.deviceLink">Device Link</h2>
+          <div class="badge"><span class="dot" id="deviceDot"></span><span id="deviceBadge" data-i18n="op.unknown">unknown</span></div>
+        </div>
+        <div class="side-block">
+          <h3 data-i18n="op.side.adbPath">ADB Path</h3>
+          <div class="mono" id="adbPath">-</div>
+        </div>
+        <div class="side-block">
+          <h3 data-i18n="op.side.devices">Connected Devices</h3>
+          <div class="stack mono" id="deviceList" data-i18n="op.noData">No data</div>
+        </div>
+        <div class="side-block">
+          <h3 data-i18n="op.side.contacts">Contacts</h3>
+          <div class="stack" id="contactList"></div>
+        </div>
+      </aside>
+    </section>
+
+    <section class="grid">
+      <article class="panel composer">
+        <h2 data-i18n="op.composer.h2">Command Deck</h2>
+        <p class="sub" data-i18n="op.composer.sub">先保演示，不重写业务层。这里直接调用现有的 voice_to_action 和 adapter。</p>
+
+        <label for="voiceText" data-i18n="op.composer.label">中文命令</label>
+        <div class="voice-wrap">
+          <textarea id="voiceText"
+            data-i18n-attr="placeholder:op.composer.placeholder"
+            placeholder="例如：给10086打电话"></textarea>
+          <button type="button" id="micBtn" class="mic-btn"
+            data-i18n-attr="title:op.mic.title;aria-label:op.mic.aria"
+            title="点一下开始录音（中文）" aria-label="开始录音">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M12 14q-1.25 0-2.125-.875T9 11V5q0-1.25.875-2.125T12 2q1.25 0 2.125.875T15 5v6q0 1.25-.875 2.125T12 14Zm-1 7v-3.075q-2.6-.35-4.3-2.325T5 11h2q0 2.075 1.463 3.537T12 16q2.075 0 3.538-1.463T17 11h2q0 2.625-1.7 4.6T13 17.925V21h-2Z"/>
+            </svg>
+          </button>
+        </div>
+        <div class="mic-status" id="micStatus"></div>
+
+        <div class="chips" id="exampleChips"></div>
+
+        <div class="controls">
+          <label class="toggle">
+            <span class="toggle-head"><input type="checkbox" id="dryRun"><span data-i18n="op.toggle.dryRun">Dry Run</span></span>
+            <p data-i18n="op.toggle.dryRun.desc">只做解析，不执行真机动作。适合答辩时先展示意图识别。</p>
+          </label>
+          <label class="toggle">
+            <span class="toggle-head"><input type="checkbox" id="autoSend"><span data-i18n="op.toggle.autoSend">Auto Send</span></span>
+            <p data-i18n="op.toggle.autoSend.desc">仅对短信动作生效。关闭更安全，开启更顺畅。</p>
+          </label>
+          <label class="toggle">
+            <span class="toggle-head"><input type="checkbox" id="noTts" checked><span data-i18n="op.toggle.noTts">No TTS</span></span>
+            <p data-i18n="op.toggle.noTts.desc">读短信时默认不播报，避免现场外放失控。</p>
+          </label>
+          <label class="toggle">
+            <span class="toggle-head"><input type="checkbox" id="refreshStatus" checked><span data-i18n="op.toggle.autoRefresh">Auto Refresh</span></span>
+            <p data-i18n="op.toggle.autoRefresh.desc">后台每 8 秒刷新一次设备状态，盯住 USB 链路。</p>
+          </label>
+        </div>
+
+        <div class="actions">
+          <button class="btn btn-primary" id="runBtn" data-i18n="op.btn.run">Run Demo Command</button>
+          <button class="btn btn-secondary" id="statusBtn" data-i18n="op.btn.refresh">Refresh Status</button>
+          <span class="run-state" id="runState" data-i18n="op.state.idle">Idle</span>
+        </div>
+      </article>
+
+      <aside class="panel result">
+        <h2 data-i18n="op.result.h2">Execution Trace</h2>
+        <p class="sub" data-i18n="op.result.sub">这里展示解析结果、真机动作回执和现场日志。评委看到这块就能理解链路已经打通。</p>
+
+        <div class="result-card">
+          <h3 data-i18n="op.card.intent">Intent + Timing</h3>
+          <div class="kv" id="summaryKv">
+            <div data-i18n="op.kv.status">Status</div><div>-</div>
+            <div data-i18n="op.kv.action">Action</div><div>-</div>
+            <div data-i18n="op.kv.target">Target</div><div>-</div>
+            <div data-i18n="op.kv.runtime">Runtime</div><div>-</div>
+            <div data-i18n="op.kv.total">Total</div><div>-</div>
+          </div>
+        </div>
+
+        <div class="result-card">
+          <h3 data-i18n="op.card.deviceResult">Device Result</h3>
+          <pre id="resultPre" data-i18n="op.result.empty">No run yet.</pre>
+        </div>
+
+        <div class="result-card">
+          <h3 data-i18n="op.card.inbox">Inbox Items</h3>
+          <div class="inbox-list" id="inboxList">
+            <div class="sub" data-i18n="op.inbox.empty">No inbox result yet.</div>
+          </div>
+        </div>
+
+        <div class="result-card">
+          <h3 data-i18n="op.card.log">Backend Log</h3>
+          <pre id="logPre" data-i18n="op.log.empty">Waiting for first command.</pre>
+        </div>
+      </aside>
+    </section>
+
+    <div class="footer" data-i18n="op.footer">Local only. Browser -> local backend -> existing Python action adapters -> real phone.</div>
+  </div>
+
+  <script src="/i18n.js"></script>
+  <script>
+    I18N.register({
+      zh: {
+        'lang.zh': '中文',
+        'lang.en': 'EN',
+        'op.title': 'ClawEase 操作台',
+        'op.eyebrow': 'ClawEase / Layer 1 / 真机演示',
+        'op.h1': '控制台 + 真机动作链',
+        'op.lead': '这层面板只做一件事：把现有的中文指令链路稳定地演出来。浏览器发起命令，本地后端调用既有 Python 逻辑，再由真机完成拨号、短信和收件箱读取。',
+        'op.stat.runtime': '意图运行时',
+        'op.stat.model': '模型',
+        'op.stat.adb': 'ADB',
+        'op.loading': '加载中',
+        'op.checking': '检测中',
+        'op.unknown': '未知',
+        'op.noData': '暂无数据',
+        'op.side.deviceLink': '设备链路',
+        'op.side.adbPath': 'ADB 路径',
+        'op.side.devices': '已连接设备',
+        'op.side.contacts': '联系人',
+        'op.device.connected': '已连接',
+        'op.device.missing': '未连接',
+        'op.device.noConnected': '未连接任何设备',
+        'op.device.noContacts': '尚未加载联系人',
+        'op.composer.h2': '指令面板',
+        'op.composer.sub': '先保演示，不重写业务层。这里直接调用现有的 voice_to_action 和 adapter。',
+        'op.composer.label': '中文命令',
+        'op.composer.placeholder': '例如：给10086打电话',
+        'op.mic.title': '点一下开始录音（中文）',
+        'op.mic.aria': '开始录音',
+        'op.mic.titleStop': '再点一下可提前停止',
+        'op.mic.unsupported.title': '当前浏览器不支持语音识别，请用 Chrome / Edge 打开',
+        'op.mic.unsupported': '此浏览器不支持 SpeechRecognition —— 直接用键盘输入也可以。',
+        'op.mic.listening': '正在听…… 中文自然说一句话，再点麦克风可停。',
+        'op.mic.done': '识别完成 —— 检查一下文本，OK 就点 Run Demo Command。',
+        'op.mic.empty': '没收到识别结果，再试一次。',
+        'op.mic.err.notAllowed': '浏览器拒绝了麦克风权限，请在地址栏左侧允许。',
+        'op.mic.err.noSpeech': '没听到声音，再试一次（靠近麦克风）。',
+        'op.mic.err.audioCapture': '找不到麦克风设备。',
+        'op.mic.err.network': '网络异常，语音识别走的是云端。',
+        'op.mic.err.aborted': '识别被中断。',
+        'op.mic.err.suffix': '（可直接用键盘输入。）',
+        'op.mic.err.start': '无法启动录音：{msg}（稍等一两秒再点）',
+        'op.toggle.dryRun': '仅解析',
+        'op.toggle.dryRun.desc': '只做解析，不执行真机动作。适合答辩时先展示意图识别。',
+        'op.toggle.autoSend': '自动发送',
+        'op.toggle.autoSend.desc': '仅对短信动作生效。关闭更安全，开启更顺畅。',
+        'op.toggle.noTts': '关闭朗读',
+        'op.toggle.noTts.desc': '读短信时默认不播报，避免现场外放失控。',
+        'op.toggle.autoRefresh': '自动刷新',
+        'op.toggle.autoRefresh.desc': '后台每 8 秒刷新一次设备状态，盯住 USB 链路。',
+        'op.btn.run': '执行命令',
+        'op.btn.refresh': '刷新状态',
+        'op.state.idle': '待命',
+        'op.state.running': '正在执行命令...',
+        'op.state.done': '执行完成。',
+        'op.state.fail': '执行失败。',
+        'op.state.failed': '执行失败但已收到结果。',
+        'op.state.empty': '请输入一条中文命令。',
+        'op.result.h2': '执行轨迹',
+        'op.result.sub': '这里展示解析结果、真机动作回执和现场日志。评委看到这块就能理解链路已经打通。',
+        'op.card.intent': '意图与计时',
+        'op.card.deviceResult': '设备回执',
+        'op.card.inbox': '收件箱',
+        'op.card.log': '后端日志',
+        'op.kv.status': '状态',
+        'op.kv.action': '动作',
+        'op.kv.target': '目标',
+        'op.kv.runtime': '运行时',
+        'op.kv.total': '耗时',
+        'op.kv.ok': '成功',
+        'op.kv.failed': '失败',
+        'op.result.empty': '尚未执行。',
+        'op.result.noAction': '本次未触发真机动作。',
+        'op.inbox.empty': '本次没有收件箱内容。',
+        'op.inbox.unknown': '未知发件人',
+        'op.log.empty': '等待第一条命令。',
+        'op.log.none': '暂无日志。',
+        'op.footer': '仅本机。浏览器 -> 本地后端 -> Python 适配器 -> 真机。',
+        'category.normal': '正常',
+        'category.code': '验证码',
+        'category.bill': '话费订单',
+        'category.bank_phish': '冒充银行',
+        'category.law_phish': '冒充公检法',
+        'category.delivery_phish': '快递通知',
+        'category.unknown': '未分类',
+      },
+      en: {
+        'lang.zh': '中文',
+        'lang.en': 'EN',
+        'op.title': 'ClawEase Demo Console',
+        'op.eyebrow': 'ClawEase / Layer 1 / Real Device Demo',
+        'op.h1': 'Console + real-device action chain',
+        'op.lead': 'This pane has one job: stage the existing Chinese-command pipeline cleanly. The browser issues a command, the local backend calls the existing Python logic, and the phone performs the dial, send, or inbox read.',
+        'op.stat.runtime': 'Intent Runtime',
+        'op.stat.model': 'Model',
+        'op.stat.adb': 'ADB',
+        'op.loading': 'Loading',
+        'op.checking': 'Checking',
+        'op.unknown': 'unknown',
+        'op.noData': 'No data',
+        'op.side.deviceLink': 'Device Link',
+        'op.side.adbPath': 'ADB Path',
+        'op.side.devices': 'Connected Devices',
+        'op.side.contacts': 'Contacts',
+        'op.device.connected': 'Connected',
+        'op.device.missing': 'Missing',
+        'op.device.noConnected': 'No connected device',
+        'op.device.noContacts': 'No contacts loaded',
+        'op.composer.h2': 'Command Deck',
+        'op.composer.sub': "Demo first, no business-layer rewrite. This calls the existing voice_to_action and adapters directly.",
+        'op.composer.label': 'Chinese command',
+        'op.composer.placeholder': 'e.g. Call 10086',
+        'op.mic.title': 'Click once to start recording (Chinese)',
+        'op.mic.aria': 'Start recording',
+        'op.mic.titleStop': 'Click again to stop early',
+        'op.mic.unsupported.title': 'This browser does not support speech recognition. Use Chrome / Edge.',
+        'op.mic.unsupported': 'This browser does not support SpeechRecognition — type instead.',
+        'op.mic.listening': 'Listening… speak naturally, click again to stop.',
+        'op.mic.done': 'Done — check the text, then click Run Demo Command.',
+        'op.mic.empty': 'No transcript captured. Try once more.',
+        'op.mic.err.notAllowed': 'The browser blocked microphone access. Allow it from the address bar.',
+        'op.mic.err.noSpeech': 'No speech detected. Try again (closer to the mic).',
+        'op.mic.err.audioCapture': 'No microphone device found.',
+        'op.mic.err.network': 'Network error — speech recognition uses the cloud.',
+        'op.mic.err.aborted': 'Recognition was aborted.',
+        'op.mic.err.suffix': ' (Typing always works.)',
+        'op.mic.err.start': 'Could not start recording: {msg} (wait a moment and retry).',
+        'op.toggle.dryRun': 'Dry Run',
+        'op.toggle.dryRun.desc': 'Parse only, no device action. Good for showing intent first during the demo.',
+        'op.toggle.autoSend': 'Auto Send',
+        'op.toggle.autoSend.desc': 'Applies to SMS only. Off is safer; on is smoother.',
+        'op.toggle.noTts': 'No TTS',
+        'op.toggle.noTts.desc': 'Skip reading SMS aloud — avoids stage-speaker chaos.',
+        'op.toggle.autoRefresh': 'Auto Refresh',
+        'op.toggle.autoRefresh.desc': 'Poll device status every 8s to watch the USB link.',
+        'op.btn.run': 'Run Demo Command',
+        'op.btn.refresh': 'Refresh Status',
+        'op.state.idle': 'Idle',
+        'op.state.running': 'Running command...',
+        'op.state.done': 'Run completed.',
+        'op.state.fail': 'Run failed.',
+        'op.state.failed': 'Run finished with failure.',
+        'op.state.empty': 'Type a Chinese command first.',
+        'op.result.h2': 'Execution Trace',
+        'op.result.sub': 'Parse result, device receipt, and live logs. The reviewer can see the whole chain here.',
+        'op.card.intent': 'Intent + Timing',
+        'op.card.deviceResult': 'Device Result',
+        'op.card.inbox': 'Inbox Items',
+        'op.card.log': 'Backend Log',
+        'op.kv.status': 'Status',
+        'op.kv.action': 'Action',
+        'op.kv.target': 'Target',
+        'op.kv.runtime': 'Runtime',
+        'op.kv.total': 'Total',
+        'op.kv.ok': 'ok',
+        'op.kv.failed': 'failed',
+        'op.result.empty': 'No run yet.',
+        'op.result.noAction': 'No device action executed.',
+        'op.inbox.empty': 'No inbox payload in this run.',
+        'op.inbox.unknown': 'unknown sender',
+        'op.log.empty': 'Waiting for first command.',
+        'op.log.none': 'No logs.',
+        'op.footer': 'Local only. Browser -> local backend -> Python adapters -> real phone.',
+        'category.normal': 'Normal',
+        'category.code': 'OTP code',
+        'category.bill': 'Carrier bill',
+        'category.bank_phish': 'Fake bank',
+        'category.law_phish': 'Fake authority',
+        'category.delivery_phish': 'Delivery scam',
+        'category.unknown': 'Unclassified',
+      },
+    });
+
+    const state = {
+      running: false,
+      statusTimer: null,
+      lastStatusData: null,
+      lastRunData: null,
+    };
+
+    const el = {
+      runtimeStat: document.getElementById('runtimeStat'),
+      modelStat: document.getElementById('modelStat'),
+      adbStat: document.getElementById('adbStat'),
+      deviceDot: document.getElementById('deviceDot'),
+      deviceBadge: document.getElementById('deviceBadge'),
+      adbPath: document.getElementById('adbPath'),
+      deviceList: document.getElementById('deviceList'),
+      contactList: document.getElementById('contactList'),
+      exampleChips: document.getElementById('exampleChips'),
+      voiceText: document.getElementById('voiceText'),
+      micBtn: document.getElementById('micBtn'),
+      micStatus: document.getElementById('micStatus'),
+      dryRun: document.getElementById('dryRun'),
+      autoSend: document.getElementById('autoSend'),
+      noTts: document.getElementById('noTts'),
+      refreshStatus: document.getElementById('refreshStatus'),
+      runBtn: document.getElementById('runBtn'),
+      statusBtn: document.getElementById('statusBtn'),
+      runState: document.getElementById('runState'),
+      summaryKv: document.getElementById('summaryKv'),
+      resultPre: document.getElementById('resultPre'),
+      inboxList: document.getElementById('inboxList'),
+      logPre: document.getElementById('logPre'),
+    };
+
+    function setI18nText(node, key) {
+      node.dataset.i18n = key;
+      node.textContent = I18N.t(key);
+    }
+
+    function clearI18nText(node, text) {
+      delete node.dataset.i18n;
+      node.textContent = text;
+    }
+
+    function setRunStateKey(key, busy = false) {
+      state.running = busy;
+      setI18nText(el.runState, key);
+      el.runBtn.disabled = busy;
+      el.statusBtn.disabled = busy;
+    }
+
+    function pretty(value) {
+      return JSON.stringify(value, null, 2);
+    }
+
+    function categoryKey(category) {
+      const map = {
+        '正常': 'category.normal',
+        '验证码': 'category.code',
+        '话费订单': 'category.bill',
+        '冒充银行': 'category.bank_phish',
+        '冒充公检法': 'category.law_phish',
+        '快递通知': 'category.delivery_phish',
+      };
+      return map[category] || 'category.unknown';
+    }
+
+    function categoryLabel(category) {
+      if (!category) return I18N.t('category.unknown');
+      return I18N.t(categoryKey(category));
+    }
+
+    function badgeClass(category) {
+      if (category === '正常') return 'ok';
+      if (category === '验证码') return 'warn';
+      if (category === '话费订单') return 'info';
+      return 'bad';
+    }
+
+    function escapeHtml(text) {
+      return String(text ?? '').replace(/[&<>"']/g, (ch) => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+      })[ch]);
+    }
+
+    function setSummary(rows) {
+      el.summaryKv.innerHTML = rows.map(([labelKey, value]) => (
+        `<div data-i18n="${labelKey}">${escapeHtml(I18N.t(labelKey))}</div><div>${escapeHtml(value ?? '-')}</div>`
+      )).join('');
+    }
+
+    async function fetchJson(url, options) {
+      const res = await fetch(url, options);
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
+      return data;
+    }
+
+    function renderStatus(data) {
+      state.lastStatusData = data;
+      el.runtimeStat.textContent = data.runtime || '-';
+      el.modelStat.textContent = data.model || '-';
+      const ok = !!data.adb?.ok;
+      setI18nText(el.adbStat, ok ? 'op.device.connected' : 'op.device.missing');
+      el.deviceDot.className = `dot ${ok ? 'ok' : 'warn'}`;
+      if (data.adb?.detail) {
+        clearI18nText(el.deviceBadge, data.adb.detail);
+      } else {
+        setI18nText(el.deviceBadge, 'op.unknown');
+      }
+      el.adbPath.textContent = data.adb?.adbPath || '-';
+      const devices = data.adb?.devices || [];
+      if (devices.length) {
+        delete el.deviceList.dataset.i18n;
+        el.deviceList.innerHTML = devices.map(device => (
+          `<div>${escapeHtml(device.serial)} <span style="opacity:.7">/ ${escapeHtml(device.state)}</span></div>`
+        )).join('');
+      } else {
+        setI18nText(el.deviceList, 'op.device.noConnected');
+      }
+      const contacts = data.contacts || [];
+      el.contactList.innerHTML = contacts.length
+        ? contacts.map(item => `
+            <div class="side-block" style="padding:10px 12px">
+              <div style="font-weight:700">${escapeHtml(item.name)}</div>
+              <div class="mono" style="font-size:12px;opacity:.86">${escapeHtml(item.phone || '-')}</div>
+              <div style="font-size:12px;opacity:.7;margin-top:4px">${escapeHtml(item.note || '')}</div>
+            </div>
+          `).join('')
+        : `<div data-i18n="op.device.noContacts">${escapeHtml(I18N.t('op.device.noContacts'))}</div>`;
+      const examples = data.examples || [];
+      el.exampleChips.innerHTML = examples.map(example => (
+        `<button class="chip" type="button">${escapeHtml(example)}</button>`
+      )).join('');
+      [...el.exampleChips.querySelectorAll('.chip')].forEach((button) => {
+        button.addEventListener('click', () => {
+          el.voiceText.value = button.textContent.trim();
+        });
+      });
+    }
+
+    function renderRun(data) {
+      state.lastRunData = data;
+      const intent = data.intent || {};
+      const parse = data.parse || {};
+      const result = data.result || null;
+      setSummary([
+        ['op.kv.status', data.ok ? I18N.t('op.kv.ok') : I18N.t('op.kv.failed')],
+        ['op.kv.action', intent.action || '-'],
+        ['op.kv.target', intent.target || '-'],
+        ['op.kv.runtime', `${parse.runtime || '-'} / ${parse.model || '-'}`],
+        ['op.kv.total', `${data.timing?.totalSec ?? '-'}s`],
+      ]);
+      if (result) {
+        delete el.resultPre.dataset.i18n;
+        el.resultPre.textContent = pretty(result);
+      } else {
+        setI18nText(el.resultPre, 'op.result.noAction');
+      }
+      const logs = data.logs || [];
+      if (logs.length) {
+        delete el.logPre.dataset.i18n;
+        el.logPre.textContent = logs.join('\n');
+      } else {
+        setI18nText(el.logPre, 'op.log.none');
+      }
+
+      const inboxItems = result?.payload || [];
+      if (Array.isArray(inboxItems) && inboxItems.length > 0) {
+        el.inboxList.innerHTML = inboxItems.map(item => `
+          <article class="sms-item">
+            <div class="sms-top">
+              <strong>${escapeHtml(item.sender || I18N.t('op.inbox.unknown'))}</strong>
+              <span class="pill ${badgeClass(item.verdict?.category)}">${escapeHtml(categoryLabel(item.verdict?.category))}</span>
+            </div>
+            <div style="font-size:13px;line-height:1.5;color:var(--muted);margin-bottom:8px">${escapeHtml(item.body || '')}</div>
+            <div class="mono" style="font-size:12px">${escapeHtml(item.readable || '')}</div>
+          </article>
+        `).join('');
+      } else {
+        el.inboxList.innerHTML = `<div class="sub" data-i18n="op.inbox.empty">${escapeHtml(I18N.t('op.inbox.empty'))}</div>`;
+      }
+    }
+
+    async function refreshStatus() {
+      try {
+        const data = await fetchJson('/api/status');
+        renderStatus(data);
+      } catch (error) {
+        el.deviceDot.className = 'dot bad';
+        clearI18nText(el.deviceBadge, error.message);
+      }
+    }
+
+    async function runCommand() {
+      const voiceText = el.voiceText.value.trim();
+      if (!voiceText) {
+        setRunStateKey('op.state.empty');
+        return;
+      }
+
+      setRunStateKey('op.state.running', true);
+      try {
+        const payload = {
+          voiceText,
+          dryRun: el.dryRun.checked,
+          autoSend: el.autoSend.checked,
+          noTts: el.noTts.checked,
+          limit: 5,
+        };
+        const data = await fetchJson('/api/run', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        renderRun(data);
+        setRunStateKey(data.ok ? 'op.state.done' : 'op.state.failed');
+        await refreshStatus();
+      } catch (error) {
+        clearI18nText(el.resultPre, error.message);
+        clearI18nText(el.logPre, error.stack || error.message);
+        setRunStateKey('op.state.fail');
+      } finally {
+        el.runBtn.disabled = false;
+        el.statusBtn.disabled = false;
+        state.running = false;
+      }
+    }
+
+    function installStatusLoop() {
+      if (state.statusTimer) {
+        clearInterval(state.statusTimer);
+        state.statusTimer = null;
+      }
+      if (!el.refreshStatus.checked) {
+        return;
+      }
+      state.statusTimer = setInterval(refreshStatus, 8000);
+    }
+
+    function initAsr() {
+      const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SR) {
+        el.micBtn.disabled = true;
+        el.micBtn.title = I18N.t('op.mic.unsupported.title');
+        el.micBtn.dataset.i18nAttr = 'title:op.mic.unsupported.title';
+        setI18nText(el.micStatus, 'op.mic.unsupported');
+        el.micStatus.classList.add('error');
+        return;
+      }
+
+      const recognition = new SR();
+      recognition.lang = 'zh-CN';
+      recognition.interimResults = true;
+      recognition.continuous = false;
+      recognition.maxAlternatives = 1;
+
+      let listening = false;
+
+      function setStatusKey(key, isError = false, vars) {
+        el.micStatus.dataset.i18n = key;
+        if (vars) {
+          el.micStatus.dataset.i18nVars = JSON.stringify(vars);
+        } else {
+          delete el.micStatus.dataset.i18nVars;
+        }
+        el.micStatus.textContent = I18N.t(key, vars);
+        el.micStatus.classList.toggle('error', isError);
+      }
+
+      recognition.onstart = () => {
+        listening = true;
+        el.micBtn.classList.remove('error');
+        el.micBtn.classList.add('listening');
+        el.micBtn.dataset.i18nAttr = 'title:op.mic.titleStop';
+        el.micBtn.title = I18N.t('op.mic.titleStop');
+        setStatusKey('op.mic.listening');
+      };
+
+      recognition.onresult = (event) => {
+        let text = '';
+        for (const result of event.results) {
+          text += result[0].transcript;
+        }
+        el.voiceText.value = text.trim();
+      };
+
+      recognition.onerror = (event) => {
+        listening = false;
+        el.micBtn.classList.remove('listening');
+        el.micBtn.classList.add('error');
+        const map = {
+          'not-allowed': 'op.mic.err.notAllowed',
+          'no-speech': 'op.mic.err.noSpeech',
+          'audio-capture': 'op.mic.err.audioCapture',
+          'network': 'op.mic.err.network',
+          'aborted': 'op.mic.err.aborted',
+        };
+        const key = map[event.error];
+        if (key) {
+          el.micStatus.dataset.i18n = key;
+          delete el.micStatus.dataset.i18nVars;
+          el.micStatus.textContent = I18N.t(key) + I18N.t('op.mic.err.suffix');
+        } else {
+          delete el.micStatus.dataset.i18n;
+          el.micStatus.textContent = (event.error || 'unknown') + I18N.t('op.mic.err.suffix');
+        }
+        el.micStatus.classList.add('error');
+      };
+
+      recognition.onend = () => {
+        listening = false;
+        el.micBtn.classList.remove('listening');
+        el.micBtn.dataset.i18nAttr = 'title:op.mic.title;aria-label:op.mic.aria';
+        el.micBtn.title = I18N.t('op.mic.title');
+        if (!el.micStatus.classList.contains('error')) {
+          setStatusKey(el.voiceText.value ? 'op.mic.done' : 'op.mic.empty');
+        }
+      };
+
+      el.micBtn.addEventListener('click', () => {
+        if (listening) {
+          try { recognition.stop(); } catch (_) {}
+          return;
+        }
+        el.micBtn.classList.remove('error');
+        try {
+          recognition.start();
+        } catch (err) {
+          el.micStatus.dataset.i18n = 'op.mic.err.start';
+          el.micStatus.dataset.i18nVars = JSON.stringify({ msg: err.message });
+          el.micStatus.textContent = I18N.t('op.mic.err.start', { msg: err.message });
+          el.micStatus.classList.add('error');
+        }
+      });
+    }
+
+    el.runBtn.addEventListener('click', runCommand);
+    el.statusBtn.addEventListener('click', refreshStatus);
+    el.refreshStatus.addEventListener('change', installStatusLoop);
+
+    I18N.bindLangSwitch(document);
+    I18N.applyStatic();
+    I18N.onChange(() => {
+      if (state.lastStatusData) renderStatus(state.lastStatusData);
+      if (state.lastRunData) renderRun(state.lastRunData);
+      if (el.micStatus.dataset.i18n) {
+        let vars;
+        if (el.micStatus.dataset.i18nVars) {
+          try { vars = JSON.parse(el.micStatus.dataset.i18nVars); } catch (_) {}
+        }
+        el.micStatus.textContent = I18N.t(el.micStatus.dataset.i18n, vars);
+      }
+    });
+
+    initAsr();
+    refreshStatus();
+    installStatusLoop();
+  </script>
+</body>
+</html>

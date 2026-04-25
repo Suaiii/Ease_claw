@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title data-i18n="shell.title">ClawEase Dual Demo</title>
+  <style>
+    :root {
+      --bg: #efe7d7;
+      --ink: #181714;
+      --muted: #625a4f;
+      --line: rgba(24, 23, 20, 0.12);
+      --panel: rgba(255, 251, 244, 0.88);
+      --accent: #b55b36;
+      --accent2: #2f725d;
+      --shadow: 0 18px 50px rgba(53, 37, 20, 0.14);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Bahnschrift", "Aptos", "Microsoft YaHei UI", sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at top left, rgba(181, 91, 54, 0.16), transparent 22rem),
+        radial-gradient(circle at 80% 15%, rgba(47, 114, 93, 0.12), transparent 20rem),
+        linear-gradient(180deg, #faf5eb 0%, #f0e7d8 100%);
+      min-height: 100vh;
+    }
+    .shell { max-width: 1500px; margin: 0 auto; padding: 18px; }
+    .top { display: grid; grid-template-columns: 1.15fr .85fr; gap: 16px; margin-bottom: 16px; }
+    .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 28px; box-shadow: var(--shadow); overflow: hidden; backdrop-filter: blur(14px); }
+    .hero { padding: 26px 28px; position: relative; }
+    .lang-switch {
+      position: absolute; top: 18px; right: 18px;
+      display: inline-flex; gap: 4px; padding: 4px;
+      background: rgba(24, 23, 20, 0.06); border-radius: 999px;
+    }
+    .lang-switch button {
+      border: 0; background: transparent; padding: 6px 12px; border-radius: 999px;
+      cursor: pointer; font: inherit; font-size: 13px; color: var(--muted);
+      transition: background .16s ease, color .16s ease, box-shadow .16s ease;
+    }
+    .lang-switch button.active {
+      background: #fff; color: var(--ink); box-shadow: 0 1px 3px rgba(53, 37, 20, 0.14);
+    }
+    .eyebrow { display: inline-flex; align-items: center; gap: 8px; padding: 7px 12px; border-radius: 999px; background: rgba(24, 23, 20, 0.06); color: var(--muted); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; margin-bottom: 14px; }
+    h1 { margin: 0 0 12px; font-family: Georgia, "STSong", serif; font-size: clamp(34px, 4vw, 56px); line-height: .98; max-width: 12ch; }
+    .lead { margin: 0; color: var(--muted); line-height: 1.6; max-width: 64ch; font-size: 15px; }
+    .guide { padding: 22px 24px; background: linear-gradient(150deg, rgba(24, 23, 20, 0.96), rgba(58, 42, 25, 0.96)); color: #f7efe3; }
+    .guide h2 { margin: 0 0 10px; font-size: 16px; text-transform: uppercase; letter-spacing: .08em; }
+    .guide p { margin: 0 0 14px; line-height: 1.6; color: rgba(247, 239, 227, 0.8); font-size: 14px; }
+    .steps { display: grid; gap: 10px; }
+    .step { border: 1px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.05); border-radius: 18px; padding: 12px 14px; }
+    .step strong { display: block; margin-bottom: 4px; }
+    .frames { display: grid; grid-template-columns: 1fr 1.18fr; gap: 16px; min-height: calc(100vh - 210px); }
+    .frame-panel { display: grid; grid-template-rows: auto 1fr; min-height: 0; }
+    .frame-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 16px 18px; border-bottom: 1px solid var(--line); background: rgba(255,255,255,0.54); }
+    .frame-head h2 { margin: 0; font-size: 15px; letter-spacing: .08em; text-transform: uppercase; }
+    .tag { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); border-radius: 999px; background: rgba(24,23,20,.06); padding: 7px 10px; }
+    .tag::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+    .tag.dev::before { background: var(--accent2); }
+    iframe { width: 100%; height: 100%; border: 0; background: white; }
+    .footer { padding: 12px 4px 0; color: var(--muted); display: flex; gap: 16px; flex-wrap: wrap; justify-content: space-between; font-size: 12px; }
+    .footer a { color: var(--accent); text-decoration: none; font-weight: 700; }
+    @media (max-width: 1080px) {
+      .top, .frames { grid-template-columns: 1fr; }
+      .frames { min-height: auto; }
+      .frame-panel { min-height: 720px; }
+      .lang-switch { top: 12px; right: 12px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <section class="top">
+      <article class="panel hero">
+        <div class="lang-switch" role="group" aria-label="Language">
+          <button type="button" data-lang="zh" data-i18n="lang.zh">中文</button>
+          <button type="button" data-lang="en" data-i18n="lang.en">EN</button>
+        </div>
+        <div class="eyebrow" data-i18n="shell.eyebrow">ClawEase / Dual View Demo</div>
+        <h1 data-i18n="shell.h1">老人端 + 操作员控制台</h1>
+        <p class="lead" data-i18n="shell.lead">左边给老人看产品视图，右边给评委看解析、设备与执行轨迹。手机画面是最终的真机佐证。</p>
+      </article>
+      <aside class="panel guide">
+        <h2 data-i18n="shell.guide.h2">推荐流程</h2>
+        <p data-i18n="shell.guide.p">先从老人端发起一句中文，再用操作员控制台讲解链路，最后落到真机动作。</p>
+        <div class="steps">
+          <div class="step">
+            <strong data-i18n="shell.step1.title">1. 从老人端开始</strong>
+            <span data-i18n="shell.step1.desc">点一张大命令卡，或说一句中文。</span>
+          </div>
+          <div class="step">
+            <strong data-i18n="shell.step2.title">2. 用控制台解释</strong>
+            <span data-i18n="shell.step2.desc">展示意图解析、运行时、ADB 状态和动作回执。</span>
+          </div>
+          <div class="step">
+            <strong data-i18n="shell.step3.title">3. 落到真机</strong>
+            <span data-i18n="shell.step3.desc">手机证明这不是模拟界面。</span>
+          </div>
+        </div>
+      </aside>
+    </section>
+
+    <section class="frames">
+      <section class="panel frame-panel">
+        <div class="frame-head">
+          <h2 data-i18n="shell.frame.user">用户端</h2>
+          <span class="tag" data-i18n="shell.tag.elder">老人视图</span>
+        </div>
+        <iframe src="/?view=elder" title="ClawEase Elder View" data-i18n-attr="title:shell.iframe.elder"></iframe>
+      </section>
+      <section class="panel frame-panel">
+        <div class="frame-head">
+          <h2 data-i18n="shell.frame.dev">开发者端</h2>
+          <span class="tag dev" data-i18n="shell.tag.operator">操作员控制台</span>
+        </div>
+        <iframe src="/?view=operator" title="ClawEase Operator Console" data-i18n-attr="title:shell.iframe.operator"></iframe>
+      </section>
+    </section>
+
+    <div class="footer">
+      <span data-i18n="shell.footer.note">仅本机。浏览器 -> 本地后端 -> Python 适配器 -> 真机。</span>
+      <span>
+        <a href="/?view=elder" target="_blank" rel="noreferrer" data-i18n="shell.footer.openElder">打开老人端</a>
+        <a href="/?view=operator" target="_blank" rel="noreferrer" data-i18n="shell.footer.openOperator">打开控制台</a>
+      </span>
+    </div>
+  </div>
+
+  <script src="/i18n.js"></script>
+  <script>
+    I18N.register({
+      zh: {
+        'lang.zh': '中文',
+        'lang.en': 'EN',
+        'shell.title': 'ClawEase 双端演示',
+        'shell.eyebrow': 'ClawEase / 双端演示',
+        'shell.h1': '老人端 + 操作员控制台',
+        'shell.lead': '左边给老人看产品视图，右边给评委看解析、设备与执行轨迹。手机画面是最终的真机佐证。',
+        'shell.guide.h2': '推荐流程',
+        'shell.guide.p': '先从老人端发起一句中文，再用操作员控制台讲解链路，最后落到真机动作。',
+        'shell.step1.title': '1. 从老人端开始',
+        'shell.step1.desc': '点一张大命令卡，或说一句中文。',
+        'shell.step2.title': '2. 用控制台解释',
+        'shell.step2.desc': '展示意图解析、运行时、ADB 状态和动作回执。',
+        'shell.step3.title': '3. 落到真机',
+        'shell.step3.desc': '手机证明这不是模拟界面。',
+        'shell.frame.user': '用户端',
+        'shell.frame.dev': '开发者端',
+        'shell.tag.elder': '老人视图',
+        'shell.tag.operator': '操作员控制台',
+        'shell.iframe.elder': 'ClawEase 老人视图',
+        'shell.iframe.operator': 'ClawEase 操作员控制台',
+        'shell.footer.note': '仅本机。浏览器 -> 本地后端 -> Python 适配器 -> 真机。',
+        'shell.footer.openElder': '在新窗口打开老人端',
+        'shell.footer.openOperator': '在新窗口打开控制台',
+      },
+      en: {
+        'lang.zh': '中文',
+        'lang.en': 'EN',
+        'shell.title': 'ClawEase Dual Demo',
+        'shell.eyebrow': 'ClawEase / Dual View Demo',
+        'shell.h1': 'Elder View + Operator Console',
+        'shell.lead': 'Use the left pane to show the product view for the elder user. Use the right pane to show parsing, device state, and execution trace. The phone screen remains the final proof.',
+        'shell.guide.h2': 'Recommended Flow',
+        'shell.guide.p': 'Start with the elder-side interaction, glance at the operator console to explain the chain, and then land on the real phone action.',
+        'shell.step1.title': '1. Start from the elder view',
+        'shell.step1.desc': 'Click a large command card or type one sentence.',
+        'shell.step2.title': '2. Explain from the console',
+        'shell.step2.desc': 'Show intent parsing, runtime, ADB state, and action result.',
+        'shell.step3.title': '3. Finish on the real phone',
+        'shell.step3.desc': 'The device validates that this is not a mock UI.',
+        'shell.frame.user': 'User Side',
+        'shell.frame.dev': 'Developer Side',
+        'shell.tag.elder': 'Elder View',
+        'shell.tag.operator': 'Operator Console',
+        'shell.iframe.elder': 'ClawEase Elder View',
+        'shell.iframe.operator': 'ClawEase Operator Console',
+        'shell.footer.note': 'Local only. Browser -> local backend -> Python adapters -> real phone.',
+        'shell.footer.openElder': 'Open elder view',
+        'shell.footer.openOperator': 'Open operator console',
+      },
+    });
+
+    I18N.bindLangSwitch(document);
+    I18N.applyStatic();
+  </script>
+</body>
+</html>

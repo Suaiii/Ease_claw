@@ -1,10 +1,10 @@
-"""反诈短信分类 skill（C 方案 Layer 1）。
+"""反诈 / 生活短信分类 skill（C 方案 Layer 1）。
 
-5 类（用户 2026-04-23 拍板，加验证码删虚拟货币）：
-  1. 冒充银行      - 假装 ICBC/ABC/BOC/CCB 等要点链接/回电/转账
-  2. 冒充公检法    - 假装警察/法院/检察院/社保局要求配合调查
-  3. 中奖          - 声称中奖/幸运用户/抽中现金奖品要求领取
-  4. 快递通知      - 假装快递丢失/需重新投递/海关扣留要求操作
+5 类（2026-04-24 调整：中奖 → 话费订单，兼顾诈骗识别与生活信息归类）：
+  1. 冒充银行      - 假装 ICBC/ABC/BOC/CCB 等要点链接/回电/转账（疑似诈骗）
+  2. 冒充公检法    - 假装警察/法院/检察院/社保局要求配合调查（疑似诈骗）
+  3. 话费订单      - 运营商（移动/联通/电信）话费账单、余额、充值、套餐类通知（合法业务）
+  4. 快递通知      - 假装快递丢失/需重新投递/海关扣留要求操作（疑似诈骗）
   5. 验证码        - 含 4-8 位数字验证码（无论来源都警告"不要告诉任何人"）
 
 分类走 OpenClaw agent（Gemini zero-shot），与 voice_to_action 用同一条通道。
@@ -17,13 +17,14 @@ import re
 from dataclasses import dataclass
 from typing import Callable
 
-CATEGORIES = ("正常", "冒充银行", "冒充公检法", "中奖", "快递通知", "验证码")
+CATEGORIES = ("正常", "冒充银行", "冒充公检法", "话费订单", "快递通知", "验证码")
 
 SPAM_PROMPT_TEMPLATE = (
     "你是短信分类器。输入一条中文短信，判断属于以下 6 类哪一类："
     "（1）冒充银行：假装 ICBC/ABC/BOC/CCB/农行/建行等，要点链接/回电/转账；"
     "（2）冒充公检法：假装警察/法院/检察院/社保局要求配合调查；"
-    "（3）中奖：声称中奖/幸运用户/抽中现金奖品要求领取；"
+    "（3）话费订单：运营商（中国移动/中国联通/中国电信、10086/10010/10000）发送的话费账单、"
+    "余额提醒、充值到账、套餐变更、流量通知等合法业务消息；"
     "（4）快递通知：假装快递丢失/需重新投递/海关扣留要求操作；"
     "（5）验证码：含 4-8 位数字验证码（无论来源，都归此类）；"
     "（6）正常：以上都不是。"
@@ -32,20 +33,30 @@ SPAM_PROMPT_TEMPLATE = (
 )
 
 VERIFICATION_CODE_RE = re.compile(r"(验证码|校验码|动态码)[^\d]{0,8}(\d{4,8})")
+PHONE_BILL_RE = re.compile(
+    r"(中国移动|中国联通|中国电信|移动公司|联通公司|电信公司|10086|10010|10000)"
+    r".{0,40}?"
+    r"(话费|账单|订单|充值|套餐|余额|流量)"
+)
 
 
 @dataclass
 class SpamVerdict:
-    category: str          # 正常 / 冒充银行 / 冒充公检法 / 中奖 / 快递通知 / 验证码
+    category: str          # 正常 / 冒充银行 / 冒充公检法 / 话费订单 / 快递通知 / 验证码
     confidence: float      # 0.0-1.0
     reason: str
     original: str
 
 
 def _fallback_classify(sms_body: str) -> SpamVerdict:
-    """LLM 不可用时的 regex 兜底。只识别明显的验证码模式；其他当正常处理。"""
+    """LLM 不可用时的 regex 兜底。
+    优先级：验证码 > 话费订单 > 正常。
+    保持保守，只命中运营商明显关键词，避免把诈骗误分成 benign。
+    """
     if VERIFICATION_CODE_RE.search(sms_body):
         return SpamVerdict("验证码", 0.7, "regex 命中验证码模式", sms_body)
+    if PHONE_BILL_RE.search(sms_body):
+        return SpamVerdict("话费订单", 0.6, "regex 命中运营商 + 话费/账单关键词", sms_body)
     return SpamVerdict("正常", 0.3, "fallback regex 未识别可疑模式", sms_body)
 
 
@@ -100,14 +111,17 @@ def _extract_json(raw: str) -> dict | None:
 def readable_prefix(verdict: SpamVerdict) -> str:
     """生成 TTS 朗读前缀。
     - 正常：空字符串（正常朗读）
-    - 验证码：警告不要告诉任何人
-    - 其他 4 类：疑似诈骗警告
+    - 验证码：警告不要告诉任何人（杀招）
+    - 话费订单：中性业务标签（合法，不是诈骗）
+    - 其他 3 类（冒充银行/公检法/快递通知）：疑似诈骗警告
     """
     cat = verdict.category
     if cat == "正常":
         return ""
     if cat == "验证码":
         return "【警告：这是验证码短信，不要告诉任何人】"
+    if cat == "话费订单":
+        return "【话费通知】"
     return f"【可疑：疑似{cat}诈骗，请谨慎】"
 
 

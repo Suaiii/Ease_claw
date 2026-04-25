@@ -1,0 +1,457 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title data-i18n="elder.title">ClawEase Elder View</title>
+  <style>
+    :root {
+      --bg: #fbf3e6;
+      --ink: #191713;
+      --muted: #645d52;
+      --line: rgba(25, 23, 19, 0.12);
+      --panel: rgba(255, 251, 244, 0.88);
+      --accent: #c16339;
+      --ok: #2f725d;
+      --warn: #9b6a14;
+      --shadow: 0 24px 60px rgba(69, 48, 26, 0.14);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Microsoft YaHei UI", "Aptos", sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at top left, rgba(193, 99, 57, 0.16), transparent 24rem),
+        linear-gradient(180deg, #fff9f0 0%, #f4ead8 100%);
+      min-height: 100vh;
+    }
+    .shell { max-width: 780px; margin: 0 auto; padding: 24px 18px 28px; }
+    .hero, .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 30px;
+      box-shadow: var(--shadow);
+    }
+    .hero { padding: 28px 24px; margin-bottom: 18px; text-align: center; position: relative; }
+    .lang-switch {
+      position: absolute; top: 18px; right: 18px;
+      display: inline-flex; gap: 4px; padding: 4px;
+      background: rgba(25, 23, 19, 0.06); border-radius: 999px;
+    }
+    .lang-switch button {
+      border: 0; background: transparent; padding: 6px 12px; border-radius: 999px;
+      cursor: pointer; font: inherit; font-size: 13px; color: var(--muted);
+      transition: background .16s ease, color .16s ease, box-shadow .16s ease;
+    }
+    .lang-switch button.active {
+      background: #fff; color: var(--ink); box-shadow: 0 1px 3px rgba(69, 48, 26, 0.12);
+    }
+    .eyebrow { display: inline-block; padding: 8px 14px; border-radius: 999px; background: rgba(25, 23, 19, 0.06); color: var(--muted); font-size: 14px; margin-bottom: 16px; }
+    h1 { margin: 0 0 12px; font-family: Georgia, "STSong", serif; font-size: clamp(40px, 7vw, 62px); line-height: 1.02; }
+    .lead { margin: 0 auto; max-width: 22em; color: var(--muted); font-size: 22px; line-height: 1.5; }
+    .stage { display: grid; gap: 16px; }
+    .card { padding: 22px; }
+    .status { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    .status-box { border: 1px solid var(--line); border-radius: 22px; padding: 14px; background: rgba(255,255,255,0.6); }
+    .status-box .label { color: var(--muted); font-size: 13px; margin-bottom: 8px; }
+    .status-box .value { font-weight: 700; font-size: 20px; }
+    .prompt { font-size: 28px; font-weight: 700; margin-bottom: 12px; text-align: center; }
+    textarea {
+      width: 100%; min-height: 132px; resize: vertical; font: inherit; font-size: 26px; line-height: 1.6;
+      padding: 18px 22px; border-radius: 24px; border: 2px solid rgba(25, 23, 19, 0.08);
+      background: rgba(255,255,255,0.82); color: var(--ink);
+    }
+    .presets { display: grid; gap: 12px; margin-top: 16px; }
+    .preset {
+      width: 100%; text-align: left; border: 0; border-radius: 24px; background: linear-gradient(135deg, #fffaf4, #f7ebde);
+      color: var(--ink); padding: 20px 22px; font: inherit; cursor: pointer; box-shadow: inset 0 0 0 1px rgba(25, 23, 19, 0.08);
+      transition: transform .16s ease, box-shadow .16s ease;
+    }
+    .preset:hover { transform: translateY(-1px); box-shadow: inset 0 0 0 1px rgba(193, 99, 57, 0.3); }
+    .preset strong { display: block; font-size: 26px; margin-bottom: 6px; }
+    .preset span { display: block; color: var(--muted); font-size: 18px; line-height: 1.45; }
+    .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 16px; }
+    .btn {
+      border: 0; border-radius: 24px; padding: 18px 20px; font: inherit; font-weight: 700; font-size: 24px;
+      cursor: pointer; transition: transform .16s ease, opacity .16s ease;
+    }
+    .btn:hover { transform: translateY(-1px); }
+    .btn:disabled { opacity: .55; cursor: wait; transform: none; }
+    .btn-primary { background: linear-gradient(135deg, var(--accent), #db7e55); color: white; }
+    .btn-secondary { background: rgba(25, 23, 19, 0.08); color: var(--ink); }
+    .big-result { text-align: center; display: grid; gap: 10px; }
+    .big-result .state { font-size: 18px; color: var(--muted); }
+    .big-result .headline { font-size: clamp(30px, 6vw, 48px); line-height: 1.18; font-weight: 800; }
+    .big-result .detail { color: var(--muted); font-size: 22px; line-height: 1.55; }
+    .hint { margin-top: 8px; text-align: center; color: var(--muted); font-size: 16px; }
+    .ok { color: var(--ok); }
+    .warn { color: var(--warn); }
+    @media (max-width: 640px) {
+      .shell { padding: 16px 12px 20px; }
+      .hero, .card { padding: 18px; border-radius: 24px; }
+      .lang-switch { top: 12px; right: 12px; }
+      .status { grid-template-columns: 1fr; }
+      .actions { grid-template-columns: 1fr; }
+      .preset strong, .btn { font-size: 22px; }
+      textarea { font-size: 22px; }
+      .lead { font-size: 18px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <section class="hero">
+      <div class="lang-switch" role="group" aria-label="Language">
+        <button type="button" data-lang="zh" data-i18n="lang.zh">中文</button>
+        <button type="button" data-lang="en" data-i18n="lang.en">EN</button>
+      </div>
+      <div class="eyebrow" data-i18n="elder.eyebrow">ClawEase 老人端</div>
+      <h1 data-i18n="elder.h1">一句话就够了</h1>
+      <p class="lead" data-i18n="elder.lead">说出你要做的事。系统会帮你打电话、发短信，或者读出最新短信。</p>
+    </section>
+
+    <section class="stage">
+      <article class="card">
+        <div class="status">
+          <div class="status-box">
+            <div class="label" data-i18n="elder.label.device">设备状态</div>
+            <div class="value" id="deviceStatus">...</div>
+          </div>
+          <div class="status-box">
+            <div class="label" data-i18n="elder.label.runtime">理解方式</div>
+            <div class="value" id="runtimeStatus">...</div>
+          </div>
+          <div class="status-box">
+            <div class="label" data-i18n="elder.label.model">Model</div>
+            <div class="value" id="modelStatus" style="font-size:16px">...</div>
+          </div>
+        </div>
+      </article>
+
+      <article class="card">
+        <div class="prompt" data-i18n="elder.prompt">你想让我帮你做什么？</div>
+        <textarea
+          id="voiceText"
+          data-i18n-attr="placeholder:elder.placeholder"
+          placeholder="例如：给10086打电话&#10;或者：有没有新短信"></textarea>
+        <div class="presets">
+          <button class="preset" type="button"
+            data-text-key="elder.preset.call.text"
+            data-text="给10086打电话">
+            <strong data-i18n="elder.preset.call.title">帮我打电话</strong>
+            <span data-i18n="elder.preset.call.desc">例如：给10086打电话</span>
+          </button>
+          <button class="preset" type="button"
+            data-text-key="elder.preset.sms.text"
+            data-text="给12306发一条我晚点到">
+            <strong data-i18n="elder.preset.sms.title">帮我发短信</strong>
+            <span data-i18n="elder.preset.sms.desc">例如：给12306发一条"我晚点到"</span>
+          </button>
+          <button class="preset" type="button"
+            data-text-key="elder.preset.inbox.text"
+            data-text="有没有新短信">
+            <strong data-i18n="elder.preset.inbox.title">帮我读短信</strong>
+            <span data-i18n="elder.preset.inbox.desc">例如：有没有新短信</span>
+          </button>
+        </div>
+        <div class="actions">
+          <button class="btn btn-primary" id="runBtn" data-i18n="elder.btn.run">开始帮我</button>
+          <button class="btn btn-secondary" id="clearBtn" data-i18n="elder.btn.clear">清空重来</button>
+        </div>
+        <div class="hint" data-i18n="elder.hint">建议演示时先从这里发起，再看右边开发者端和手机画面。</div>
+      </article>
+
+      <article class="card">
+        <div class="big-result">
+          <div class="state" id="runState" data-i18n="elder.state.idle">等待命令</div>
+          <div class="headline" id="headline" data-i18n="elder.headline.intro">我会把你的话变成一个明确动作。</div>
+          <div class="detail" id="detail" data-i18n="elder.detail.intro">点击上面的按钮，或者输入一句中文命令。</div>
+        </div>
+      </article>
+    </section>
+  </div>
+
+  <script src="/i18n.js"></script>
+  <script>
+    I18N.register({
+      zh: {
+        'lang.zh': '中文',
+        'lang.en': 'EN',
+        'elder.title': 'ClawEase 老人端',
+        'elder.eyebrow': 'ClawEase 老人端',
+        'elder.h1': '一句话就够了',
+        'elder.lead': '说出你要做的事。系统会帮你打电话、发短信，或者读出最新短信。',
+        'elder.label.device': '设备状态',
+        'elder.label.runtime': '理解方式',
+        'elder.label.model': 'Model',
+        'elder.prompt': '你想让我帮你做什么？',
+        'elder.placeholder': '例如：给10086打电话\n或者：有没有新短信',
+        'elder.preset.call.title': '帮我打电话',
+        'elder.preset.call.desc': '例如：给10086打电话',
+        'elder.preset.call.text': '给10086打电话',
+        'elder.preset.sms.title': '帮我发短信',
+        'elder.preset.sms.desc': '例如：给12306发一条"我晚点到"',
+        'elder.preset.sms.text': '给12306发一条我晚点到',
+        'elder.preset.inbox.title': '帮我读短信',
+        'elder.preset.inbox.desc': '例如：有没有新短信',
+        'elder.preset.inbox.text': '有没有新短信',
+        'elder.btn.run': '开始帮我',
+        'elder.btn.clear': '清空重来',
+        'elder.hint': '建议演示时先从这里发起，再看右边开发者端和手机画面。',
+        'elder.state.idle': '等待命令',
+        'elder.state.busy': '正在帮你处理...',
+        'elder.state.done': '已完成',
+        'elder.state.error': '出错了',
+        'elder.headline.intro': '我会把你的话变成一个明确动作。',
+        'elder.detail.intro': '点击上面的按钮，或者输入一句中文命令。',
+        'elder.headline.busy': '我正在听清你说的话。',
+        'elder.detail.busy': '稍等一下，很快就好。',
+        'elder.headline.empty': '先说点什么？',
+        'elder.detail.empty': '比如：给10086打电话。',
+        'elder.headline.fail': '这次没能跑通。',
+        'elder.detail.fail': '未知错误。',
+        'elder.headline.error': '遇到了点问题。',
+        'elder.headline.call': '已经帮你把号码准备好了。',
+        'elder.detail.call': '在手机上按绿键就能接通对方。',
+        'elder.headline.sms': '已经帮你把短信写好了。',
+        'elder.detail.sms': '请在手机上确认后发送。',
+        'elder.headline.inbox': '帮你看了，最新有 {n} 条短信。',
+        'elder.detail.inbox.empty': '暂时没有新短信。',
+        'elder.detail.inbox.unknown_sender': '陌生号码',
+        'elder.headline.unknown': '收到一条我还不认识的指令。',
+        'elder.headline.cleared': '清空了，再说一句试试。',
+        'elder.detail.cleared': '点上面的按钮，或者再写一条。',
+        'elder.device.connected': '已连接',
+        'elder.device.missing': '未连接',
+        'elder.device.failed': '连接不上',
+      },
+      en: {
+        'lang.zh': '中文',
+        'lang.en': 'EN',
+        'elder.title': 'ClawEase Elder View',
+        'elder.eyebrow': 'ClawEase Elder View',
+        'elder.h1': 'One sentence is enough',
+        'elder.lead': "Say what you want. The system will place a call, send a text, or read out your latest messages.",
+        'elder.label.device': 'Device',
+        'elder.label.runtime': 'Runtime',
+        'elder.label.model': 'Model',
+        'elder.prompt': 'What can I do for you?',
+        'elder.placeholder': 'e.g. Call 10086\nor: Any new messages?',
+        'elder.preset.call.title': 'Make a call',
+        'elder.preset.call.desc': 'e.g. Call 10086',
+        'elder.preset.call.text': 'Call 10086',
+        'elder.preset.sms.title': 'Send a text',
+        'elder.preset.sms.desc': 'e.g. Text 12306: "I will be late"',
+        'elder.preset.sms.text': 'Text 12306 saying I will be late',
+        'elder.preset.inbox.title': 'Read messages',
+        'elder.preset.inbox.desc': 'e.g. Any new messages?',
+        'elder.preset.inbox.text': 'Any new messages?',
+        'elder.btn.run': 'Help me',
+        'elder.btn.clear': 'Clear',
+        'elder.hint': 'Start here for the demo, then glance at the operator console and the phone.',
+        'elder.state.idle': 'Idle',
+        'elder.state.busy': 'Working...',
+        'elder.state.done': 'Done',
+        'elder.state.error': 'Failed',
+        'elder.headline.intro': "I'll turn your sentence into a clear action.",
+        'elder.detail.intro': 'Click a button above, or type one sentence.',
+        'elder.headline.busy': 'Listening to your sentence.',
+        'elder.detail.busy': 'Just a moment, almost there.',
+        'elder.headline.empty': 'What should I do?',
+        'elder.detail.empty': 'Try: Call 10086.',
+        'elder.headline.fail': 'Could not run this time.',
+        'elder.detail.fail': 'Unknown error.',
+        'elder.headline.error': 'Hit a problem.',
+        'elder.headline.call': 'Number is ready on your phone.',
+        'elder.detail.call': 'Press the green key to dial.',
+        'elder.headline.sms': 'Your text is composed.',
+        'elder.detail.sms': 'Confirm and send it on your phone.',
+        'elder.headline.inbox': 'Looked it up — {n} latest messages.',
+        'elder.detail.inbox.empty': 'No new messages right now.',
+        'elder.detail.inbox.unknown_sender': 'Unknown sender',
+        'elder.headline.unknown': "Got a command I don't recognise.",
+        'elder.headline.cleared': 'Cleared. Try one more sentence.',
+        'elder.detail.cleared': 'Tap a button or type one again.',
+        'elder.device.connected': 'Connected',
+        'elder.device.missing': 'Not connected',
+        'elder.device.failed': 'Cannot reach',
+      },
+    });
+
+    const state = { lastStatus: null, lastRun: null };
+
+    const el = {
+      deviceStatus: document.getElementById('deviceStatus'),
+      runtimeStatus: document.getElementById('runtimeStatus'),
+      modelStatus: document.getElementById('modelStatus'),
+      voiceText: document.getElementById('voiceText'),
+      runBtn: document.getElementById('runBtn'),
+      clearBtn: document.getElementById('clearBtn'),
+      runState: document.getElementById('runState'),
+      headline: document.getElementById('headline'),
+      detail: document.getElementById('detail'),
+    };
+
+    async function fetchJson(url, options) {
+      const res = await fetch(url, options);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      return data;
+    }
+
+    function setBusy(busy, textKey) {
+      el.runBtn.disabled = busy;
+      el.clearBtn.disabled = busy;
+      el.runState.dataset.i18n = textKey;
+      el.runState.textContent = I18N.t(textKey);
+    }
+
+    function setText(node, key, vars) {
+      node.dataset.i18n = key;
+      if (vars) {
+        node.dataset.i18nVars = JSON.stringify(vars);
+        node.textContent = I18N.t(key, vars);
+      } else {
+        delete node.dataset.i18nVars;
+        node.textContent = I18N.t(key);
+      }
+    }
+
+    function renderStatus(data) {
+      state.lastStatus = data;
+      const ok = !!data.adb?.ok;
+      el.deviceStatus.dataset.i18n = ok ? 'elder.device.connected' : 'elder.device.missing';
+      el.deviceStatus.textContent = I18N.t(el.deviceStatus.dataset.i18n);
+      el.deviceStatus.className = `value ${ok ? 'ok' : 'warn'}`;
+      el.runtimeStatus.textContent = data.runtime || '-';
+      el.modelStatus.textContent = data.model || '-';
+    }
+
+    function renderRun(data) {
+      state.lastRun = data;
+      const intent = data.intent || {};
+      const result = data.result || {};
+      if (!data.ok) {
+        setText(el.headline, 'elder.headline.fail');
+        if (data.error) {
+          delete el.detail.dataset.i18n;
+          el.detail.textContent = data.error;
+        } else {
+          setText(el.detail, 'elder.detail.fail');
+        }
+        return;
+      }
+      if (intent.action === 'call') {
+        setText(el.headline, 'elder.headline.call');
+        if (result.detail) {
+          delete el.detail.dataset.i18n;
+          el.detail.textContent = result.detail;
+        } else {
+          setText(el.detail, 'elder.detail.call');
+        }
+      } else if (intent.action === 'send_sms') {
+        setText(el.headline, 'elder.headline.sms');
+        if (result.detail) {
+          delete el.detail.dataset.i18n;
+          el.detail.textContent = result.detail;
+        } else {
+          setText(el.detail, 'elder.detail.sms');
+        }
+      } else if (intent.action === 'read_inbox') {
+        const items = result.payload || [];
+        setText(el.headline, 'elder.headline.inbox', { n: items.length });
+        if (items.length > 0) {
+          const first = items[0];
+          const sender = first.sender || I18N.t('elder.detail.inbox.unknown_sender');
+          delete el.detail.dataset.i18n;
+          el.detail.textContent = `${sender}：${first.readable || first.body || ''}`;
+        } else if (result.detail) {
+          delete el.detail.dataset.i18n;
+          el.detail.textContent = result.detail;
+        } else {
+          setText(el.detail, 'elder.detail.inbox.empty');
+        }
+      } else {
+        setText(el.headline, 'elder.headline.unknown');
+        delete el.detail.dataset.i18n;
+        el.detail.textContent = JSON.stringify(intent);
+      }
+    }
+
+    async function refreshStatus() {
+      try {
+        const data = await fetchJson('/api/status');
+        renderStatus(data);
+      } catch {
+        el.deviceStatus.dataset.i18n = 'elder.device.failed';
+        el.deviceStatus.textContent = I18N.t('elder.device.failed');
+        el.deviceStatus.className = 'value warn';
+      }
+    }
+
+    async function runCommand() {
+      const voiceText = el.voiceText.value.trim();
+      if (!voiceText) {
+        setText(el.headline, 'elder.headline.empty');
+        setText(el.detail, 'elder.detail.empty');
+        return;
+      }
+      setBusy(true, 'elder.state.busy');
+      setText(el.headline, 'elder.headline.busy');
+      setText(el.detail, 'elder.detail.busy');
+      try {
+        const data = await fetchJson('/api/run', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ voiceText, dryRun: false, autoSend: false, noTts: true, limit: 5 }),
+        });
+        renderRun(data);
+        setBusy(false, 'elder.state.done');
+        await refreshStatus();
+      } catch (error) {
+        setText(el.headline, 'elder.headline.error');
+        delete el.detail.dataset.i18n;
+        el.detail.textContent = error.message;
+        setBusy(false, 'elder.state.error');
+      }
+    }
+
+    document.querySelectorAll('[data-text]').forEach((button) => {
+      button.addEventListener('click', () => {
+        const key = button.dataset.textKey;
+        if (key) {
+          el.voiceText.value = I18N.t(key);
+        } else {
+          el.voiceText.value = button.dataset.text || '';
+        }
+      });
+    });
+
+    el.runBtn.addEventListener('click', runCommand);
+    el.clearBtn.addEventListener('click', () => {
+      el.voiceText.value = '';
+      setText(el.runState, 'elder.state.idle');
+      setText(el.headline, 'elder.headline.cleared');
+      setText(el.detail, 'elder.detail.cleared');
+    });
+
+    I18N.bindLangSwitch(document);
+    I18N.applyStatic();
+    I18N.onChange(() => {
+      // 重渲染带变量的动态文本（status / run）+ 已变更属性
+      if (state.lastStatus) renderStatus(state.lastStatus);
+      if (state.lastRun) renderRun(state.lastRun);
+      if (el.headline.dataset.i18n && el.headline.dataset.i18nVars) {
+        try {
+          const vars = JSON.parse(el.headline.dataset.i18nVars);
+          el.headline.textContent = I18N.t(el.headline.dataset.i18n, vars);
+        } catch (_) {}
+      }
+    });
+
+    refreshStatus();
+    setInterval(refreshStatus, 8000);
+  </script>
+</body>
+</html>
