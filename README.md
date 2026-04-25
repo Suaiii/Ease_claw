@@ -2,14 +2,14 @@
 
 语音驱动的老人 / 视障无障碍代理。一句中文命令 → 打电话、发短信、读带反诈标注的收件箱。
 
-基于 [OpenClaw](https://github.com/OpenClaw/openclaw) 做意图解析；adb / uiautomator2 落到真机 Android。SJTU OpenClaw 大赛创意赛道作品。
+当前主链基于云端 [OpenClaw](https://github.com/OpenClaw/openclaw) 做秒级意图解析；本地 Python adapter 通过 `adb` / Android `intent` 落到真机执行。SJTU OpenClaw 大赛创意赛道作品。
 
 ## 它做什么
 
 老人对着浏览器说一句中文，比如"给 10086 打电话"、"有没有新短信"、"给 12306 发一条我晚点到"，系统：
 
 1. 浏览器 `webkitSpeechRecognition` 把语音转中文文本
-2. OpenClaw（Gemini 2.5 Flash）zero-shot 解析成 `{action, target, content}`
+2. 云端 OpenClaw 把命令解析成 `{action, target, content}`
 3. 路由到三个 ActionAdapter 之一执行：
    - `call` → `am start ACTION_DIAL` 弹拨号器，老人按绿键确认
    - `send_sms` → `am start ACTION_SENDTO` 预填短信，停在编辑器等老人按发送
@@ -32,17 +32,40 @@
 
 LLM 不可用时 regex 兜底至少识别验证码模式。
 
-## 跑起来
+## 固定启动方式
 
-需求：Windows 11 + Python 3.11 + Node.js（OpenClaw 用 pnpm）+ 一台 Android 设备（USB 调试打开）。
+需求：Windows 11 + 项目内 `.conda\clawease` Python + Node.js + 一台 Android 设备（USB 调试打开，可选但真机动作需要）。
+
+### 1. 启动当前产品栈
 
 ```powershell
-# 1. 启动本地 demo 服务
-./start_demo.ps1
-
-# 2. 浏览器打开
-# http://127.0.0.1:8765
+./start_product.ps1
 ```
+
+这个入口会做两件事：
+
+1. 启动并校验云端 OpenClaw relay
+2. 启动本地 demo 服务 `http://127.0.0.1:8765`
+
+### 2. 直接调用当前主链
+
+```powershell
+E:\aNB\Ease-claw\.conda\clawease\python.exe E:\aNB\Ease-claw\scripts\voice_to_action.py --voice-text "给10086打电话"
+E:\aNB\Ease-claw\.conda\clawease\python.exe E:\aNB\Ease-claw\scripts\voice_to_action.py --voice-text "给12306发一条我晚点到"
+E:\aNB\Ease-claw\.conda\clawease\python.exe E:\aNB\Ease-claw\scripts\voice_to_action.py --voice-text "有没有新短信" --no-tts
+```
+
+### 3. 停止云端 relay
+
+```powershell
+./stop_product.ps1
+```
+
+说明：
+
+- 当前默认解析模式是 `OPENCLAW_PARSE_MODE=openclaw_cloud`
+- 项目使用专用云端 state：`E:\aNB\Ease-claw\.openclaw-cloud`
+- 业务脚本不直接暴露远端公网 WS，而是固定经由本机 `127.0.0.1:31879` relay
 
 页面有三个视图：
 
@@ -80,14 +103,22 @@ notes/
 
 ## 当前状态
 
-Layer 1（Python + adb + OpenClaw）已在小米 13（MIUI）真机 smoke 通过：
+当前成立的是一条云端语义 + 本地执行的产品主链：
 
-- CallAdapter / SmsAdapter / InboxReaderAdapter 三件套全绿
+- 云端 OpenClaw 已接入业务链，意图解析可稳定到秒级
+- `voice_to_action.py` 默认通过云端 OpenClaw 返回结构化动作
+- CallAdapter / SmsAdapter / InboxReaderAdapter 三件套可执行真机动作
 - 浏览器 ASR 接入 textarea，麦克风按钮按一下开始录
-- 反诈 5 类 zero-shot 分类，offline regex 兜底验证码
-- 三视图 demo 站点支持中-英切换
+- 反诈 5 类分类可用，offline regex 兜底验证码
+- 三视图 demo 站点支持中英切换
 
-下一步走 Kotlin 原生 APK，Intent + ContentResolver 路径，不依赖无障碍服务、不 root。
+当前还没有完全做到的是：
+
+- OpenClaw 还不是手机原生执行层，手机动作仍由 Python adapter 落地
+- 标准 OpenClaw CLI 的远端 metadata-change 审批流还未完全收口
+- 真机端到端仍依赖 `adb` 与设备状态稳定
+
+下一步目标仍然是把手机动作进一步封成 OpenClaw 工具，而不是停留在“模型解析 + Python 执行”。
 
 详见 [`notes/ARCHITECTURE.md`](notes/ARCHITECTURE.md) 和 [`notes/CHANGELOG.md`](notes/CHANGELOG.md)。
 

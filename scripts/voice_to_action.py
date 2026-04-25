@@ -4,6 +4,7 @@ import argparse
 import json
 import os
 import re
+import socket
 import subprocess
 import sys
 import time
@@ -16,6 +17,9 @@ WORKSPACE_ROOT = Path(r"E:\aNB\Ease-claw")
 DEFAULT_CONTACTS = WORKSPACE_ROOT / "contacts.json"
 DEFAULT_ENV = WORKSPACE_ROOT / ".env"
 START_BAT = WORKSPACE_ROOT / "start.bat"
+OPENCLAW_CLOUD_STATE_DIR = WORKSPACE_ROOT / ".openclaw-cloud"
+OPENCLAW_CLOUD_RELAY = WORKSPACE_ROOT / "scripts" / "start_openclaw_cloud_relay.ps1"
+OPENCLAW_CLOUD_HELPER = WORKSPACE_ROOT / "scripts" / "openclaw_cloud_intent.mjs"
 DEFAULT_ADB = (
     WORKSPACE_ROOT
     / ".conda"
@@ -28,15 +32,21 @@ DEFAULT_ADB = (
 )
 
 INTENT_PROMPT_TEMPLATE = (
-    "你是老人手机助手的中文意图解析器。"
-    "只做一件事：把用户的一句中文命令解析成一个 JSON 对象。"
+    "你是面向老人/视障用户的中文通讯助手语义解析器。"
+    "你不只是做动作分类，还要提炼老人话里的关键信息。"
+    "只返回一个 JSON 对象，不要解释，不要代码块。"
     "action 只能是 call、send_sms、read_inbox 之一。"
     "规则："
     "call 表示打电话，target 填联系人姓名或号码，content 置空；"
     "send_sms 表示发短信，target 填联系人姓名或号码，content 填短信正文；"
     "read_inbox 表示读取最新短信，target 和 content 都置空。"
-    "只返回一个 JSON 对象，不要解释，不要代码块。"
-    '格式：{{"action":"call|send_sms|read_inbox","target":"...","content":"..."}}。'
+    "summary 用一句自然中文总结老人真正想做的事；"
+    "key_points 是 1 到 3 条短语，提取关键信息；"
+    "focus_tags 从 known_contact、verification_code、fraud_risk、urgent、reminder 中选择 0 到 3 个；"
+    "risk_flags 从 fraud_risk、unclear_target、unclear_content 中选择；"
+    "needs_clarification 是 true/false；"
+    "clarify_question 仅在需要澄清时填写一句追问，否则置空。"
+    '格式：{{"action":"call|send_sms|read_inbox","target":"...","content":"...","summary":"...","key_points":["..."],"focus_tags":["..."],"risk_flags":["..."],"needs_clarification":false,"clarify_question":""}}。'
     "用户输入：{user_text}"
 )
 
@@ -73,6 +83,7 @@ OPENCLAW_MODEL_ID = "google/gemini-2.5-flash"
 OPENCLAW_PARSE_MODE = "model_run"
 OPENAI_MODEL_ID = "gpt-5.4-mini"
 DEEPSEEK_MODEL_ID = "deepseek-chat"
+OPENCLAW_CLOUD_URL = "ws://127.0.0.1:31879"
 OPENCLAW_AGENT_TIMEOUT_SEC = 210
 OPENCLAW_PROCESS_TIMEOUT_SEC = 240
 OPENCLAW_USE_FOR_SMS_CLASSIFICATION = False
@@ -86,6 +97,7 @@ def refresh_runtime_flags() -> None:
     global OPENCLAW_PARSE_MODE
     global OPENAI_MODEL_ID
     global DEEPSEEK_MODEL_ID
+    global OPENCLAW_CLOUD_URL
     global OPENCLAW_AGENT_TIMEOUT_SEC
     global OPENCLAW_PROCESS_TIMEOUT_SEC
     global OPENCLAW_USE_FOR_SMS_CLASSIFICATION
@@ -103,6 +115,10 @@ def refresh_runtime_flags() -> None:
     )
     OPENAI_MODEL_ID = os.environ.get("OPENAI_MODEL_ID", "gpt-5.4-mini").strip() or "gpt-5.4-mini"
     DEEPSEEK_MODEL_ID = os.environ.get("DEEPSEEK_MODEL_ID", "deepseek-chat").strip() or "deepseek-chat"
+    OPENCLAW_CLOUD_URL = (
+        os.environ.get("OPENCLAW_CLOUD_URL", "ws://127.0.0.1:31879").strip()
+        or "ws://127.0.0.1:31879"
+    )
     OPENCLAW_AGENT_TIMEOUT_SEC = _env_int("OPENCLAW_AGENT_TIMEOUT_SEC", 210)
     OPENCLAW_PROCESS_TIMEOUT_SEC = _env_int(
         "OPENCLAW_PROCESS_TIMEOUT_SEC", OPENCLAW_AGENT_TIMEOUT_SEC + 30
@@ -272,6 +288,66 @@ def call_deepseek_direct(prompt: str) -> str:
     return text
 
 
+def ensure_openclaw_cloud_relay() -> None:
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.settimeout(1.5)
+    try:
+        sock.connect(("127.0.0.1", 31879))
+        return
+    except OSError:
+        pass
+    finally:
+        sock.close()
+
+    if not OPENCLAW_CLOUD_RELAY.exists():
+        raise RuntimeError(f"cloud relay script missing: {OPENCLAW_CLOUD_RELAY}")
+    proc = subprocess.run(
+        [
+            "powershell",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            str(OPENCLAW_CLOUD_RELAY),
+        ],
+        cwd=str(WORKSPACE_ROOT),
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        timeout=20,
+        env=current_subprocess_env(),
+    )
+    if proc.returncode != 0:
+        raise RuntimeError(
+            f"failed to start cloud relay: stdout={proc.stdout!r} stderr={proc.stderr!r}"
+        )
+
+
+def call_openclaw_cloud(prompt: str) -> str:
+    ensure_openclaw_cloud_relay()
+    if not OPENCLAW_CLOUD_HELPER.exists():
+        raise RuntimeError(f"cloud helper missing: {OPENCLAW_CLOUD_HELPER}")
+    env = current_subprocess_env()
+    env.setdefault("OPENCLAW_CLOUD_STATE_DIR", str(OPENCLAW_CLOUD_STATE_DIR))
+    env.setdefault("OPENCLAW_CLOUD_URL", OPENCLAW_CLOUD_URL)
+    proc = subprocess.run(
+        ["node", str(OPENCLAW_CLOUD_HELPER), prompt],
+        cwd=str(WORKSPACE_ROOT),
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        timeout=min(OPENCLAW_PROCESS_TIMEOUT_SEC, 60),
+        env=env,
+    )
+    if proc.returncode != 0:
+        raise RuntimeError(
+            f"OpenClaw cloud exited {proc.returncode}. stdout={proc.stdout!r} stderr={proc.stderr!r}"
+        )
+    text = (proc.stdout or "").strip()
+    if not text:
+        raise RuntimeError(f"OpenClaw cloud emitted no text. stderr={proc.stderr!r}")
+    return text
+
+
 def call_openclaw(prompt: str) -> str:
     global OPENCLAW_AVAILABLE
     if not OPENCLAW_AVAILABLE:
@@ -280,6 +356,8 @@ def call_openclaw(prompt: str) -> str:
         return call_openai_direct(prompt)
     if OPENCLAW_PARSE_MODE == "deepseek_direct":
         return call_deepseek_direct(prompt)
+    if OPENCLAW_PARSE_MODE == "openclaw_cloud":
+        return call_openclaw_cloud(prompt)
     if OPENCLAW_PARSE_MODE == "agent":
         session_id = OPENCLAW_SESSION_ID or f"clawease-intent-{int(time.time() * 1000)}"
         cmd = [
@@ -375,11 +453,22 @@ def fallback_intent(user_text: str, contacts_path: Path) -> dict:
     text = user_text.strip()
     contacts = load_contacts(contacts_path)
     target = find_target_candidate(text, contacts)
+    key_points = [text[:24]] if text else []
 
     if any(keyword in text for keyword in CALL_HINTS):
         if not target:
             raise RuntimeError(f"fallback could not resolve call target: {text!r}")
-        return {"action": "call", "target": target, "content": ""}
+        return {
+            "action": "call",
+            "target": target,
+            "content": "",
+            "summary": f"老人想给{target}打电话。",
+            "key_points": [f"联系人：{target}", "动作：打电话"],
+            "focus_tags": ["known_contact"] if target in contacts else [],
+            "risk_flags": [],
+            "needs_clarification": False,
+            "clarify_question": "",
+        }
 
     if any(marker in text for marker in SMS_HINTS):
         if not target:
@@ -387,10 +476,33 @@ def fallback_intent(user_text: str, contacts_path: Path) -> dict:
         content = normalize_sms_content(text, target)
         if not content:
             raise RuntimeError(f"fallback could not resolve sms content: {text!r}")
-        return {"action": "send_sms", "target": target, "content": content}
+        return {
+            "action": "send_sms",
+            "target": target,
+            "content": content,
+            "summary": f"老人想给{target}发短信，核心内容是：{content}",
+            "key_points": [f"联系人：{target}", f"短信：{content[:18]}"],
+            "focus_tags": ["known_contact"] if target in contacts else [],
+            "risk_flags": [],
+            "needs_clarification": False,
+            "clarify_question": "",
+        }
 
     if any(marker in text for marker in INBOX_HINTS):
-        return {"action": "read_inbox", "target": "", "content": ""}
+        focus_tags = ["verification_code"] if "验证码" in text else []
+        if any(flag in text for flag in ("诈骗", "可疑", "陌生")):
+            focus_tags.append("fraud_risk")
+        return {
+            "action": "read_inbox",
+            "target": "",
+            "content": "",
+            "summary": "老人想查看并听取最新短信里的重点信息。",
+            "key_points": key_points or ["查看新短信"],
+            "focus_tags": focus_tags,
+            "risk_flags": [],
+            "needs_clarification": False,
+            "clarify_question": "",
+        }
 
     raise RuntimeError(f"fallback could not resolve intent: {text!r}")
 
@@ -401,21 +513,103 @@ def parse_intent(inner_text: str) -> dict:
     if text.startswith("```"):
         lines = text.splitlines()
         text = "\n".join(lines[1:-1]).strip()
-    idx = text.find("{")
-    if idx < 0:
+    candidates = [m.start() for m in re.finditer(r"\{", text)]
+    if not candidates:
         raise RuntimeError(f"intent JSON not found: {inner_text!r}")
-    try:
-        obj, _ = json.JSONDecoder().raw_decode(text[idx:])
-    except json.JSONDecodeError as exc:
-        raise RuntimeError(f"intent JSON parse failed: {exc}: {inner_text!r}") from exc
+    obj = None
+    last_error = None
+    for idx in candidates:
+        try:
+            parsed, _ = json.JSONDecoder().raw_decode(text[idx:])
+        except json.JSONDecodeError as exc:
+            last_error = exc
+            parsed = _parse_relaxed_intent(text[idx:])
+            if parsed is None:
+                continue
+        obj = parsed
+        if isinstance(obj, dict) and obj.get("action") in {"call", "send_sms", "read_inbox"}:
+            break
+    if not isinstance(obj, dict):
+        raise RuntimeError(f"intent JSON parse failed: {last_error}: {inner_text!r}")
     action = str(obj.get("action", "")).strip()
     if action not in {"call", "send_sms", "read_inbox"}:
         raise RuntimeError(f"invalid intent action: {obj!r}")
+    def _string_list(value) -> list[str]:
+        if not isinstance(value, list):
+            return []
+        items: list[str] = []
+        for item in value:
+            text = str(item or "").strip()
+            if text:
+                items.append(text)
+        return items[:3]
+
     return {
         "action": action,
         "target": str(obj.get("target", "")).strip(),
         "content": str(obj.get("content", "")).strip(),
+        "summary": str(obj.get("summary", "")).strip(),
+        "key_points": _string_list(obj.get("key_points")),
+        "focus_tags": _string_list(obj.get("focus_tags")),
+        "risk_flags": _string_list(obj.get("risk_flags")),
+        "needs_clarification": bool(obj.get("needs_clarification", False)),
+        "clarify_question": str(obj.get("clarify_question", "")).strip(),
     }
+
+
+def _parse_relaxed_intent(raw: str) -> dict | None:
+    def grab(name: str) -> str:
+        match = re.search(rf'"{name}"\s*:\s*"(.*?)"', raw, re.DOTALL)
+        if not match:
+            return ""
+        value = match.group(1).strip()
+        if value == ",":
+            return ""
+        return value
+
+    def grab_bool(name: str) -> bool:
+        match = re.search(rf'"{name}"\s*:\s*(true|false)', raw, re.IGNORECASE)
+        return bool(match and match.group(1).lower() == "true")
+
+    def grab_list(name: str) -> list[str]:
+        match = re.search(rf'"{name}"\s*:\s*\[(.*?)\]', raw, re.DOTALL)
+        if not match:
+            return []
+        inner = match.group(1)
+        return [item.strip() for item in re.findall(r'"(.*?)"', inner) if item.strip()][:3]
+
+    action = grab("action")
+    if action not in {"call", "send_sms", "read_inbox"}:
+        return None
+    return {
+        "action": action,
+        "target": grab("target"),
+        "content": grab("content"),
+        "summary": grab("summary"),
+        "key_points": grab_list("key_points"),
+        "focus_tags": grab_list("focus_tags"),
+        "risk_flags": grab_list("risk_flags"),
+        "needs_clarification": grab_bool("needs_clarification"),
+        "clarify_question": grab("clarify_question"),
+    }
+
+
+def compose_parse_user_text(user_text: str, clarification_context: dict | None = None) -> str:
+    text = (user_text or "").strip()
+    if not clarification_context:
+        return text
+    original = str(clarification_context.get("originalVoiceText") or "").strip()
+    question = str(clarification_context.get("question") or "").strip()
+    prior_summary = str(clarification_context.get("summary") or "").strip()
+    if not original:
+        return text
+    parts = [f"老人上一轮原话：{original}"]
+    if prior_summary:
+        parts.append(f"上一轮系统判断：{prior_summary}")
+    if question:
+        parts.append(f"系统追问：{question}")
+    parts.append(f"老人这次补充回答：{text}")
+    return "\n".join(parts)
 
 
 
@@ -501,13 +695,25 @@ def do_read_inbox(limit: int, skip_tts: bool) -> int:
 
     try:
         sys.path.insert(0, str(Path(__file__).resolve().parent))
-        from tts_local import preheat, speak
+        from elder_summary import summarize_inbox_for_elder
+        from tts_service import preheat, speak
+
+        contacts = load_contacts(DEFAULT_CONTACTS)
+        contact_rows = [
+            {"name": name, "phone": entry.get("phone", ""), "note": entry.get("note", "")}
+            for name, entry in contacts.items()
+            if name and not name.startswith("_") and isinstance(entry, dict)
+        ]
+        elder_summary = summarize_inbox_for_elder(
+            items,
+            contact_rows,
+            intent={"summary": "查看并归纳短信重点", "focus_tags": []},
+            llm_caller=call_openclaw if OPENCLAW_AVAILABLE else None,
+        )
 
         kind = preheat()
         print(f"[clawease] tts engine={kind}, reading summary...")
-        speak(f"你有 {len(items)} 条新消息。", blocking=True)
-        for i, item in enumerate(items, 1):
-            speak(f"第 {i} 条。{item['readable']}", blocking=True)
+        speak(elder_summary["speech"], blocking=True)
     except Exception as exc:
         print(f"[clawease] TTS failed but main flow is okay: {exc!r}")
     return 0
@@ -537,6 +743,9 @@ def main() -> int:
     elif OPENCLAW_PARSE_MODE == "deepseek_direct":
         parse_model = DEEPSEEK_MODEL_ID
         parse_runtime = "DeepSeek direct"
+    elif OPENCLAW_PARSE_MODE == "openclaw_cloud":
+        parse_model = "remote-main"
+        parse_runtime = "OpenClaw cloud"
     else:
         parse_model = OPENCLAW_MODEL_ID
         parse_runtime = "OpenClaw"

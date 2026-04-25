@@ -706,6 +706,7 @@
         'op.state.done': '执行完成。',
         'op.state.fail': '执行失败。',
         'op.state.failed': '执行失败但已收到结果。',
+        'op.state.clarify': '等待用户补充',
         'op.state.empty': '请输入一条中文命令。',
         'op.result.h2': '执行轨迹',
         'op.result.sub': '这里展示解析结果、真机动作回执和现场日志。评委看到这块就能理解链路已经打通。',
@@ -718,6 +719,9 @@
         'op.kv.target': '目标',
         'op.kv.runtime': '运行时',
         'op.kv.total': '耗时',
+        'op.kv.summary': '语义摘要',
+        'op.kv.focus': '关注点',
+        'op.kv.clarify': '澄清',
         'op.kv.ok': '成功',
         'op.kv.failed': '失败',
         'op.result.empty': '尚未执行。',
@@ -791,6 +795,7 @@
         'op.state.done': 'Run completed.',
         'op.state.fail': 'Run failed.',
         'op.state.failed': 'Run finished with failure.',
+        'op.state.clarify': 'Waiting for clarification.',
         'op.state.empty': 'Type a Chinese command first.',
         'op.result.h2': 'Execution Trace',
         'op.result.sub': 'Parse result, device receipt, and live logs. The reviewer can see the whole chain here.',
@@ -803,6 +808,9 @@
         'op.kv.target': 'Target',
         'op.kv.runtime': 'Runtime',
         'op.kv.total': 'Total',
+        'op.kv.summary': 'Semantic Summary',
+        'op.kv.focus': 'Focus',
+        'op.kv.clarify': 'Clarify',
         'op.kv.ok': 'ok',
         'op.kv.failed': 'failed',
         'op.result.empty': 'No run yet.',
@@ -827,6 +835,7 @@
       statusTimer: null,
       lastStatusData: null,
       lastRunData: null,
+      pendingClarification: null,
     };
 
     const el = {
@@ -969,16 +978,27 @@
       const intent = data.intent || {};
       const parse = data.parse || {};
       const result = data.result || null;
+      if (data.clarificationRequired) {
+        state.pendingClarification = data.pendingClarification?.context || null;
+      } else {
+        state.pendingClarification = null;
+      }
       setSummary([
         ['op.kv.status', data.ok ? I18N.t('op.kv.ok') : I18N.t('op.kv.failed')],
         ['op.kv.action', intent.action || '-'],
         ['op.kv.target', intent.target || '-'],
+        ['op.kv.summary', intent.summary || '-'],
+        ['op.kv.focus', (intent.focus_tags || []).join(', ') || '-'],
+        ['op.kv.clarify', intent.needs_clarification ? (intent.clarify_question || 'yes') : '-'],
         ['op.kv.runtime', `${parse.runtime || '-'} / ${parse.model || '-'}`],
         ['op.kv.total', `${data.timing?.totalSec ?? '-'}s`],
       ]);
       if (result) {
         delete el.resultPre.dataset.i18n;
         el.resultPre.textContent = pretty(result);
+      } else if (data.clarificationRequired) {
+        delete el.resultPre.dataset.i18n;
+        el.resultPre.textContent = data.pendingClarification?.question || intent.clarify_question || '';
       } else {
         setI18nText(el.resultPre, 'op.result.noAction');
       }
@@ -1032,6 +1052,7 @@
           autoSend: el.autoSend.checked,
           noTts: el.noTts.checked,
           limit: 5,
+          clarificationContext: state.pendingClarification,
         };
         const data = await fetchJson('/api/run', {
           method: 'POST',
@@ -1039,7 +1060,7 @@
           body: JSON.stringify(payload),
         });
         renderRun(data);
-        setRunStateKey(data.ok ? 'op.state.done' : 'op.state.failed');
+        setRunStateKey(data.clarificationRequired ? 'op.state.clarify' : (data.ok ? 'op.state.done' : 'op.state.failed'));
         await refreshStatus();
       } catch (error) {
         clearI18nText(el.resultPre, error.message);

@@ -59,9 +59,57 @@
     .prompt { font-size: 28px; font-weight: 700; margin-bottom: 12px; text-align: center; }
     textarea {
       width: 100%; min-height: 132px; resize: vertical; font: inherit; font-size: 26px; line-height: 1.6;
-      padding: 18px 22px; border-radius: 24px; border: 2px solid rgba(25, 23, 19, 0.08);
+      padding: 18px 78px 18px 22px; border-radius: 24px; border: 2px solid rgba(25, 23, 19, 0.08);
       background: rgba(255,255,255,0.82); color: var(--ink);
     }
+    .voice-wrap { position: relative; }
+    .mic-btn {
+      position: absolute; right: 16px; bottom: 16px; width: 56px; height: 56px;
+      border-radius: 50%; border: 2px solid rgba(25, 23, 19, 0.08);
+      background: #fff; color: var(--accent); cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 6px 16px rgba(69, 48, 26, 0.16);
+      transition: transform .16s ease, background .16s ease, color .16s ease, box-shadow .16s ease;
+    }
+    .mic-btn:hover { transform: translateY(-1px); }
+    .mic-btn:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+    .mic-btn.listening {
+      background: var(--accent); color: #fff; border-color: transparent;
+      animation: mic-pulse 1.2s infinite;
+    }
+    .mic-btn.error { background: #b53b3b; color: #fff; border-color: transparent; }
+    @keyframes mic-pulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(193, 99, 57, 0.55); }
+      50% { box-shadow: 0 0 0 14px rgba(193, 99, 57, 0); }
+    }
+    .mic-status {
+      margin: 10px 4px 0; font-size: 16px; color: var(--muted);
+      min-height: 22px; line-height: 1.5; text-align: center;
+    }
+    .mic-status.error { color: #b53b3b; }
+    .readout-toggle {
+      display: flex; align-items: center; justify-content: space-between; gap: 16px;
+      margin-top: 14px; padding: 14px 16px; border-radius: 22px;
+      border: 1px solid var(--line); background: rgba(255,255,255,0.66);
+    }
+    .readout-copy { display: grid; gap: 4px; }
+    .readout-copy strong { font-size: 18px; }
+    .readout-copy span { color: var(--muted); font-size: 15px; line-height: 1.5; }
+    .switch {
+      position: relative; width: 60px; height: 34px; display: inline-flex; flex: 0 0 auto;
+    }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .slider {
+      position: absolute; inset: 0; cursor: pointer; border-radius: 999px;
+      background: rgba(25, 23, 19, 0.18); transition: background .16s ease;
+    }
+    .slider::before {
+      content: ""; position: absolute; left: 4px; top: 4px; width: 26px; height: 26px;
+      border-radius: 50%; background: #fff; box-shadow: 0 3px 10px rgba(69, 48, 26, 0.18);
+      transition: transform .16s ease;
+    }
+    .switch input:checked + .slider { background: var(--ok); }
+    .switch input:checked + .slider::before { transform: translateX(26px); }
     .presets { display: grid; gap: 12px; margin-top: 16px; }
     .preset {
       width: 100%; text-align: left; border: 0; border-radius: 24px; background: linear-gradient(135deg, #fffaf4, #f7ebde);
@@ -131,10 +179,30 @@
 
       <article class="card">
         <div class="prompt" data-i18n="elder.prompt">你想让我帮你做什么？</div>
-        <textarea
-          id="voiceText"
-          data-i18n-attr="placeholder:elder.placeholder"
-          placeholder="例如：给10086打电话&#10;或者：有没有新短信"></textarea>
+        <div class="voice-wrap">
+          <textarea
+            id="voiceText"
+            data-i18n-attr="placeholder:elder.placeholder"
+            placeholder="例如：给10086打电话&#10;或者：有没有新短信"></textarea>
+          <button type="button" id="micBtn" class="mic-btn"
+            data-i18n-attr="title:elder.mic.title;aria-label:elder.mic.aria"
+            title="按一下开始说话" aria-label="开始说话">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M12 14q-1.25 0-2.125-.875T9 11V5q0-1.25.875-2.125T12 2q1.25 0 2.125.875T15 5v6q0 1.25-.875 2.125T12 14Zm-1 7v-3.075q-2.6-.35-4.3-2.325T5 11h2q0 2.075 1.463 3.537T12 16q2.075 0 3.538-1.463T17 11h2q0 2.625-1.7 4.6T13 17.925V21h-2Z"/>
+            </svg>
+          </button>
+        </div>
+        <div class="mic-status" id="micStatus"></div>
+        <div class="readout-toggle">
+          <div class="readout-copy">
+            <strong data-i18n="elder.readaloud.title">读短信给我听</strong>
+            <span data-i18n="elder.readaloud.desc">开启后，读短信时会自动播报归纳结果。</span>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="readAloud" checked>
+            <span class="slider" aria-hidden="true"></span>
+          </label>
+        </div>
         <div class="presets">
           <button class="preset" type="button"
             data-text-key="elder.preset.call.text"
@@ -198,11 +266,29 @@
         'elder.preset.inbox.text': '有没有新短信',
         'elder.btn.run': '开始帮我',
         'elder.btn.clear': '清空重来',
+        'elder.mic.title': '按一下开始说话（中文）',
+        'elder.mic.aria': '开始说话',
+        'elder.mic.titleStop': '再按一下停止',
+        'elder.mic.unsupported.title': '请用 Chrome 或 Edge 打开',
+        'elder.mic.unsupported': '这个浏览器不能用语音 —— 直接用键盘也可以。',
+        'elder.mic.listening': '请说话…… 说完再按一下麦克风。',
+        'elder.mic.done': '听到了 —— 看一下文本，按"开始帮我"。',
+        'elder.mic.empty': '没听到声音，再试一次。',
+        'elder.mic.err.notAllowed': '需要麦克风权限。地址栏左侧点允许。',
+        'elder.mic.err.noSpeech': '没听到声音，靠近麦克风再说一次。',
+        'elder.mic.err.audioCapture': '找不到麦克风。',
+        'elder.mic.err.network': '网络异常 —— 语音识别需要联网。',
+        'elder.mic.err.aborted': '识别被打断。',
+        'elder.mic.err.suffix': '（可以直接用键盘。）',
+        'elder.mic.err.start': '启动录音失败：{msg}',
+        'elder.readaloud.title': '读短信给我听',
+        'elder.readaloud.desc': '开启后，读短信时会自动播报归纳结果。',
         'elder.hint': '建议演示时先从这里发起，再看右边开发者端和手机画面。',
         'elder.state.idle': '等待命令',
         'elder.state.busy': '正在帮你处理...',
         'elder.state.done': '已完成',
         'elder.state.error': '出错了',
+        'elder.state.clarify': '等你补充一句',
         'elder.headline.intro': '我会把你的话变成一个明确动作。',
         'elder.detail.intro': '点击上面的按钮，或者输入一句中文命令。',
         'elder.headline.busy': '我正在听清你说的话。',
@@ -212,6 +298,7 @@
         'elder.headline.fail': '这次没能跑通。',
         'elder.detail.fail': '未知错误。',
         'elder.headline.error': '遇到了点问题。',
+        'elder.headline.clarify': '我还想再确认一下。',
         'elder.headline.call': '已经帮你把号码准备好了。',
         'elder.detail.call': '在手机上按绿键就能接通对方。',
         'elder.headline.sms': '已经帮你把短信写好了。',
@@ -249,11 +336,29 @@
         'elder.preset.inbox.text': 'Any new messages?',
         'elder.btn.run': 'Help me',
         'elder.btn.clear': 'Clear',
+        'elder.mic.title': 'Click to start speaking (Chinese)',
+        'elder.mic.aria': 'Start speaking',
+        'elder.mic.titleStop': 'Click again to stop',
+        'elder.mic.unsupported.title': 'Open this in Chrome or Edge',
+        'elder.mic.unsupported': "This browser can't use speech — you can still type.",
+        'elder.mic.listening': 'Listening… click the mic again when done.',
+        'elder.mic.done': 'Got it — check the text, then press "Help me".',
+        'elder.mic.empty': 'No speech captured. Try again.',
+        'elder.mic.err.notAllowed': 'Microphone permission needed. Allow it from the address bar.',
+        'elder.mic.err.noSpeech': 'No speech detected. Move closer to the mic.',
+        'elder.mic.err.audioCapture': 'No microphone found.',
+        'elder.mic.err.network': 'Network error — speech recognition needs the internet.',
+        'elder.mic.err.aborted': 'Recognition was aborted.',
+        'elder.mic.err.suffix': ' (Typing always works.)',
+        'elder.mic.err.start': 'Could not start recording: {msg}',
+        'elder.readaloud.title': 'Read messages aloud',
+        'elder.readaloud.desc': 'When enabled, reading messages will automatically speak a short summary.',
         'elder.hint': 'Start here for the demo, then glance at the operator console and the phone.',
         'elder.state.idle': 'Idle',
         'elder.state.busy': 'Working...',
         'elder.state.done': 'Done',
         'elder.state.error': 'Failed',
+        'elder.state.clarify': 'Need one more detail',
         'elder.headline.intro': "I'll turn your sentence into a clear action.",
         'elder.detail.intro': 'Click a button above, or type one sentence.',
         'elder.headline.busy': 'Listening to your sentence.',
@@ -263,6 +368,7 @@
         'elder.headline.fail': 'Could not run this time.',
         'elder.detail.fail': 'Unknown error.',
         'elder.headline.error': 'Hit a problem.',
+        'elder.headline.clarify': 'I need one more detail.',
         'elder.headline.call': 'Number is ready on your phone.',
         'elder.detail.call': 'Press the green key to dial.',
         'elder.headline.sms': 'Your text is composed.',
@@ -279,13 +385,16 @@
       },
     });
 
-    const state = { lastStatus: null, lastRun: null };
+    const state = { lastStatus: null, lastRun: null, pendingClarification: null };
 
     const el = {
       deviceStatus: document.getElementById('deviceStatus'),
       runtimeStatus: document.getElementById('runtimeStatus'),
       modelStatus: document.getElementById('modelStatus'),
       voiceText: document.getElementById('voiceText'),
+      micBtn: document.getElementById('micBtn'),
+      micStatus: document.getElementById('micStatus'),
+      readAloud: document.getElementById('readAloud'),
       runBtn: document.getElementById('runBtn'),
       clearBtn: document.getElementById('clearBtn'),
       runState: document.getElementById('runState'),
@@ -332,6 +441,15 @@
       state.lastRun = data;
       const intent = data.intent || {};
       const result = data.result || {};
+      if (data.clarificationRequired) {
+        state.pendingClarification = data.pendingClarification?.context || null;
+        setText(el.headline, 'elder.headline.clarify');
+        delete el.detail.dataset.i18n;
+        el.detail.textContent = data.pendingClarification?.question || intent.clarify_question || '';
+        setBusy(false, 'elder.state.clarify');
+        return;
+      }
+      state.pendingClarification = null;
       if (!data.ok) {
         setText(el.headline, 'elder.headline.fail');
         if (data.error) {
@@ -361,7 +479,10 @@
       } else if (intent.action === 'read_inbox') {
         const items = result.payload || [];
         setText(el.headline, 'elder.headline.inbox', { n: items.length });
-        if (items.length > 0) {
+        if (data.elderSummary?.display) {
+          delete el.detail.dataset.i18n;
+          el.detail.textContent = data.elderSummary.display;
+        } else if (items.length > 0) {
           const first = items[0];
           const sender = first.sender || I18N.t('elder.detail.inbox.unknown_sender');
           delete el.detail.dataset.i18n;
@@ -404,10 +525,19 @@
         const data = await fetchJson('/api/run', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ voiceText, dryRun: false, autoSend: false, noTts: true, limit: 5 }),
+          body: JSON.stringify({
+            voiceText,
+            dryRun: false,
+            autoSend: false,
+            noTts: !el.readAloud.checked,
+            limit: 5,
+            clarificationContext: state.pendingClarification,
+          }),
         });
         renderRun(data);
-        setBusy(false, 'elder.state.done');
+        if (!data.clarificationRequired) {
+          setBusy(false, 'elder.state.done');
+        }
         await refreshStatus();
       } catch (error) {
         setText(el.headline, 'elder.headline.error');
@@ -430,6 +560,7 @@
 
     el.runBtn.addEventListener('click', runCommand);
     el.clearBtn.addEventListener('click', () => {
+      state.pendingClarification = null;
       el.voiceText.value = '';
       setText(el.runState, 'elder.state.idle');
       setText(el.headline, 'elder.headline.cleared');
@@ -442,6 +573,13 @@
       // 重渲染带变量的动态文本（status / run）+ 已变更属性
       if (state.lastStatus) renderStatus(state.lastStatus);
       if (state.lastRun) renderRun(state.lastRun);
+      if (el.micStatus.dataset.i18n) {
+        let vars;
+        if (el.micStatus.dataset.i18nVars) {
+          try { vars = JSON.parse(el.micStatus.dataset.i18nVars); } catch (_) {}
+        }
+        el.micStatus.textContent = I18N.t(el.micStatus.dataset.i18n, vars);
+      }
       if (el.headline.dataset.i18n && el.headline.dataset.i18nVars) {
         try {
           const vars = JSON.parse(el.headline.dataset.i18nVars);
@@ -450,8 +588,107 @@
       }
     });
 
+    function initAsr() {
+      const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SR) {
+        el.micBtn.disabled = true;
+        el.micBtn.title = I18N.t('elder.mic.unsupported.title');
+        el.micBtn.dataset.i18nAttr = 'title:elder.mic.unsupported.title';
+        setText(el.micStatus, 'elder.mic.unsupported');
+        el.micStatus.classList.add('error');
+        return;
+      }
+
+      const recognition = new SR();
+      recognition.lang = 'zh-CN';
+      recognition.interimResults = true;
+      recognition.continuous = false;
+      recognition.maxAlternatives = 1;
+
+      let listening = false;
+
+      function setMicStatus(key, isError = false, vars) {
+        el.micStatus.dataset.i18n = key;
+        if (vars) {
+          el.micStatus.dataset.i18nVars = JSON.stringify(vars);
+        } else {
+          delete el.micStatus.dataset.i18nVars;
+        }
+        el.micStatus.textContent = I18N.t(key, vars);
+        el.micStatus.classList.toggle('error', isError);
+      }
+
+      recognition.onstart = () => {
+        listening = true;
+        el.micBtn.classList.remove('error');
+        el.micBtn.classList.add('listening');
+        el.micBtn.dataset.i18nAttr = 'title:elder.mic.titleStop';
+        el.micBtn.title = I18N.t('elder.mic.titleStop');
+        setMicStatus('elder.mic.listening');
+      };
+
+      recognition.onresult = (event) => {
+        let text = '';
+        for (const result of event.results) {
+          text += result[0].transcript;
+        }
+        el.voiceText.value = text.trim();
+      };
+
+      recognition.onerror = (event) => {
+        listening = false;
+        el.micBtn.classList.remove('listening');
+        el.micBtn.classList.add('error');
+        const map = {
+          'not-allowed': 'elder.mic.err.notAllowed',
+          'no-speech': 'elder.mic.err.noSpeech',
+          'audio-capture': 'elder.mic.err.audioCapture',
+          'network': 'elder.mic.err.network',
+          'aborted': 'elder.mic.err.aborted',
+        };
+        const key = map[event.error];
+        if (key) {
+          el.micStatus.dataset.i18n = key;
+          delete el.micStatus.dataset.i18nVars;
+          el.micStatus.textContent = I18N.t(key) + I18N.t('elder.mic.err.suffix');
+        } else {
+          delete el.micStatus.dataset.i18n;
+          el.micStatus.textContent = (event.error || 'unknown') + I18N.t('elder.mic.err.suffix');
+        }
+        el.micStatus.classList.add('error');
+      };
+
+      recognition.onend = () => {
+        listening = false;
+        el.micBtn.classList.remove('listening');
+        el.micBtn.dataset.i18nAttr = 'title:elder.mic.title;aria-label:elder.mic.aria';
+        el.micBtn.title = I18N.t('elder.mic.title');
+        if (!el.micStatus.classList.contains('error')) {
+          setMicStatus(el.voiceText.value ? 'elder.mic.done' : 'elder.mic.empty');
+        }
+      };
+
+      el.micBtn.addEventListener('click', () => {
+        if (listening) {
+          try { recognition.stop(); } catch (_) {}
+          return;
+        }
+        el.micBtn.classList.remove('error');
+        try {
+          recognition.start();
+        } catch (err) {
+          el.micStatus.dataset.i18n = 'elder.mic.err.start';
+          el.micStatus.dataset.i18nVars = JSON.stringify({ msg: err.message });
+          el.micStatus.textContent = I18N.t('elder.mic.err.start', { msg: err.message });
+          el.micStatus.classList.add('error');
+        }
+      });
+    }
+
+    initAsr();
     refreshStatus();
     setInterval(refreshStatus, 8000);
   </script>
 </body>
 </html>
+

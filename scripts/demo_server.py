@@ -22,6 +22,7 @@ if str(Path(__file__).resolve().parent) not in sys.path:
     sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import voice_to_action as vta
+from elder_summary import summarize_inbox_for_elder
 
 
 RUN_LOCK = threading.Lock()
@@ -97,8 +98,18 @@ def probe_adb_devices() -> dict:
 
 def build_status_payload() -> dict:
     bootstrap_runtime()
-    parse_model = vta.OPENAI_MODEL_ID if vta.OPENCLAW_PARSE_MODE == "openai_direct" else vta.OPENCLAW_MODEL_ID
-    parse_runtime = "OpenAI direct" if vta.OPENCLAW_PARSE_MODE == "openai_direct" else "OpenClaw"
+    if vta.OPENCLAW_PARSE_MODE == "openai_direct":
+        parse_model = vta.OPENAI_MODEL_ID
+        parse_runtime = "OpenAI direct"
+    elif vta.OPENCLAW_PARSE_MODE == "deepseek_direct":
+        parse_model = vta.DEEPSEEK_MODEL_ID
+        parse_runtime = "DeepSeek direct"
+    elif vta.OPENCLAW_PARSE_MODE == "openclaw_cloud":
+        parse_model = "remote-main"
+        parse_runtime = "OpenClaw cloud"
+    else:
+        parse_model = vta.OPENCLAW_MODEL_ID
+        parse_runtime = "OpenClaw"
     return {
         "ok": True,
         "mode": vta.OPENCLAW_PARSE_MODE,
@@ -117,6 +128,7 @@ def build_status_payload() -> dict:
 def run_voice_command(
     voice_text: str,
     *,
+    clarification_context: dict | None = None,
     dry_run: bool = False,
     no_tts: bool = True,
     limit: int = 5,
@@ -130,16 +142,29 @@ def run_voice_command(
         logs.append(f"[{stamp}] {message}")
 
     started_at = time.time()
-    parse_model = vta.OPENAI_MODEL_ID if vta.OPENCLAW_PARSE_MODE == "openai_direct" else vta.OPENCLAW_MODEL_ID
-    parse_runtime = "OpenAI direct" if vta.OPENCLAW_PARSE_MODE == "openai_direct" else "OpenClaw"
+    if vta.OPENCLAW_PARSE_MODE == "openai_direct":
+        parse_model = vta.OPENAI_MODEL_ID
+        parse_runtime = "OpenAI direct"
+    elif vta.OPENCLAW_PARSE_MODE == "deepseek_direct":
+        parse_model = vta.DEEPSEEK_MODEL_ID
+        parse_runtime = "DeepSeek direct"
+    elif vta.OPENCLAW_PARSE_MODE == "openclaw_cloud":
+        parse_model = "remote-main"
+        parse_runtime = "OpenClaw cloud"
+    else:
+        parse_model = vta.OPENCLAW_MODEL_ID
+        parse_runtime = "OpenClaw"
     log(f"voice_text={voice_text!r}")
+    if clarification_context:
+        log(f"clarification_context={clarification_context!r}")
     log(f"parse runtime={parse_runtime}, mode={vta.OPENCLAW_PARSE_MODE}, model={parse_model}")
 
     fallback_used = False
     parse_error = ""
+    parse_user_text = vta.compose_parse_user_text(voice_text, clarification_context)
     try:
         t0 = time.time()
-        raw_reply = vta.call_openclaw(vta.INTENT_PROMPT_TEMPLATE.format(user_text=voice_text))
+        raw_reply = vta.call_openclaw(vta.INTENT_PROMPT_TEMPLATE.format(user_text=parse_user_text))
         parse_elapsed = time.time() - t0
         log(f"model reply in {parse_elapsed:.1f}s: {raw_reply}")
         intent = vta.parse_intent(raw_reply)
@@ -169,6 +194,26 @@ def run_voice_command(
         "timing": {"totalSec": 0.0},
     }
 
+    if intent.get("needs_clarification"):
+        question = intent.get("clarify_question") or "你是想让我帮你打电话、发短信，还是读短信？"
+        original_voice_text = (
+            str(clarification_context.get("originalVoiceText") or "").strip()
+            if clarification_context
+            else voice_text
+        )
+        response["clarificationRequired"] = True
+        response["pendingClarification"] = {
+            "question": question,
+            "context": {
+                "originalVoiceText": original_voice_text,
+                "question": question,
+                "summary": intent.get("summary", ""),
+            },
+        }
+        log(f"clarification required: {question}")
+        response["timing"]["totalSec"] = round(time.time() - started_at, 2)
+        return response
+
     if dry_run:
         log("dry-run: skip device action")
         response["timing"]["totalSec"] = round(time.time() - started_at, 2)
@@ -181,13 +226,23 @@ def run_voice_command(
         llm_caller = vta.call_openclaw if vta.OPENCLAW_AVAILABLE and vta.OPENCLAW_USE_FOR_SMS_CLASSIFICATION else None
         result = adapter.execute({"limit": int(limit), "llm_caller": llm_caller})
         log(f"read_inbox result: ok={result.ok} detail={result.detail}")
+        if result.ok:
+            summary_llm = vta.call_openclaw if vta.OPENCLAW_AVAILABLE else None
+            elder_summary = summarize_inbox_for_elder(
+                list(result.payload or []),
+                load_contacts_summary(),
+                intent=intent,
+                llm_caller=summary_llm,
+            )
+            response["elderSummary"] = elder_summary
         if result.ok and not no_tts and result.payload:
             try:
-                from tts_local import preheat, speak
+                from tts_service import preheat, speak
 
                 kind = preheat()
                 log(f"tts engine={kind}")
-                speak(f"你有 {len(result.payload)} 条新消息。", blocking=True)
+                speech = response.get("elderSummary", {}).get("speech") or f"你有 {len(result.payload)} 条新消息。"
+                speak(speech, blocking=True)
             except Exception as exc:
                 log(f"tts failed: {exc!r}")
         response["result"] = _json_ready(result)
@@ -299,6 +354,7 @@ class DemoHandler(BaseHTTPRequestHandler):
         try:
             result = run_voice_command(
                 voice_text,
+                clarification_context=payload.get("clarificationContext") if isinstance(payload.get("clarificationContext"), dict) else None,
                 dry_run=bool(payload.get("dryRun", False)),
                 no_tts=bool(payload.get("noTts", True)),
                 limit=int(payload.get("limit", 5) or 5),

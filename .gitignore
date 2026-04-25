@@ -48,3 +48,5 @@ openclaw/.turbo/
 # OpenClaw 其他常见生成物
 **/.next/
 **/node_modules/
+.openclaw-cloud/
+.openclaw-cloud-relay.*
